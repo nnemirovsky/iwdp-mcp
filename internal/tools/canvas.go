@@ -39,11 +39,15 @@ func GetCanvasContent(ctx context.Context, client *webkit.Client, canvasID strin
 }
 
 // StartCanvasRecording starts recording actions on a canvas.
-func StartCanvasRecording(ctx context.Context, client *webkit.Client, canvasID string, singleFrame bool) error {
-	_, err := client.Send(ctx, "Canvas.startRecording", map[string]interface{}{
-		"canvasId":    canvasID,
-		"singleFrame": singleFrame,
-	})
+// frameCount specifies the number of frames to record (0 means unlimited).
+func StartCanvasRecording(ctx context.Context, client *webkit.Client, canvasID string, frameCount int) error {
+	params := map[string]interface{}{
+		"canvasId": canvasID,
+	}
+	if frameCount > 0 {
+		params["frameCount"] = frameCount
+	}
+	_, err := client.Send(ctx, "Canvas.startRecording", params)
 	return err
 }
 

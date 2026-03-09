@@ -81,8 +81,10 @@ func TestSetBreakpointByURLWithCondition(t *testing.T) {
 			return nil, err
 		}
 		receivedColumn = p["columnNumber"]
-		if c, ok := p["condition"].(string); ok {
-			receivedCondition = c
+		if opts, ok := p["options"].(map[string]interface{}); ok {
+			if c, ok := opts["condition"].(string); ok {
+				receivedCondition = c
+			}
 		}
 		return map[string]interface{}{
 			"breakpointId": "bp-2",
@@ -289,21 +291,59 @@ func TestRemoveDOMBreakpoint(t *testing.T) {
 
 func TestSetEventBreakpoint(t *testing.T) {
 	mock, client := setup(t)
-	mock.HandleFunc("DOMDebugger.setEventBreakpoint", map[string]interface{}{})
+
+	var receivedType, receivedEvent string
+	mock.Handle("DOMDebugger.setEventBreakpoint", func(_ string, params json.RawMessage) (interface{}, error) {
+		var p struct {
+			BreakpointType string `json:"breakpointType"`
+			EventName      string `json:"eventName"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		receivedType = p.BreakpointType
+		receivedEvent = p.EventName
+		return map[string]interface{}{}, nil
+	})
 
 	ctx := context.Background()
-	if err := tools.SetEventBreakpoint(ctx, client, "click"); err != nil {
+	if err := tools.SetEventBreakpoint(ctx, client, "listener", "click"); err != nil {
 		t.Fatalf("SetEventBreakpoint returned error: %v", err)
+	}
+	if receivedType != "listener" {
+		t.Errorf("expected breakpointType %q, got %q", "listener", receivedType)
+	}
+	if receivedEvent != "click" {
+		t.Errorf("expected eventName %q, got %q", "click", receivedEvent)
 	}
 }
 
 func TestRemoveEventBreakpoint(t *testing.T) {
 	mock, client := setup(t)
-	mock.HandleFunc("DOMDebugger.removeEventBreakpoint", map[string]interface{}{})
+
+	var receivedType, receivedEvent string
+	mock.Handle("DOMDebugger.removeEventBreakpoint", func(_ string, params json.RawMessage) (interface{}, error) {
+		var p struct {
+			BreakpointType string `json:"breakpointType"`
+			EventName      string `json:"eventName"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		receivedType = p.BreakpointType
+		receivedEvent = p.EventName
+		return map[string]interface{}{}, nil
+	})
 
 	ctx := context.Background()
-	if err := tools.RemoveEventBreakpoint(ctx, client, "click"); err != nil {
+	if err := tools.RemoveEventBreakpoint(ctx, client, "listener", "click"); err != nil {
 		t.Fatalf("RemoveEventBreakpoint returned error: %v", err)
+	}
+	if receivedType != "listener" {
+		t.Errorf("expected breakpointType %q, got %q", "listener", receivedType)
+	}
+	if receivedEvent != "click" {
+		t.Errorf("expected eventName %q, got %q", "click", receivedEvent)
 	}
 }
 
@@ -458,23 +498,54 @@ func TestTimelineCollector(t *testing.T) {
 // Memory domain
 // ---------------------------------------------------------------------------
 
-func TestMemoryStartTracking(t *testing.T) {
+func TestMemoryTrackingCollector(t *testing.T) {
 	mock, client := setup(t)
 	mock.HandleFunc("Memory.startTracking", map[string]interface{}{})
-
-	ctx := context.Background()
-	if err := tools.MemoryStartTracking(ctx, client); err != nil {
-		t.Fatalf("MemoryStartTracking returned error: %v", err)
-	}
-}
-
-func TestMemoryStopTracking(t *testing.T) {
-	mock, client := setup(t)
 	mock.HandleFunc("Memory.stopTracking", map[string]interface{}{})
 
+	collector := tools.NewMemoryTrackingCollector()
 	ctx := context.Background()
-	if err := tools.MemoryStopTracking(ctx, client); err != nil {
-		t.Fatalf("MemoryStopTracking returned error: %v", err)
+	if err := collector.Start(ctx, client); err != nil {
+		t.Fatalf("MemoryTrackingCollector.Start: %v", err)
+	}
+
+	// Send a trackingUpdate event.
+	if err := mock.SendEvent("Memory.trackingUpdate", map[string]interface{}{
+		"event": map[string]interface{}{
+			"timestamp": 1000.0,
+			"categories": []map[string]interface{}{
+				{"type": "JavaScript", "size": 1024},
+				{"type": "Images", "size": 2048},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("SendEvent trackingUpdate: %v", err)
+	}
+	time.Sleep(100 * time.Millisecond)
+
+	// Send trackingComplete to signal stop.
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		_ = mock.SendEvent("Memory.trackingComplete", map[string]interface{}{
+			"timestamp": 2000.0,
+		})
+	}()
+
+	result, err := collector.Stop(ctx, client)
+	if err != nil {
+		t.Fatalf("MemoryTrackingCollector.Stop: %v", err)
+	}
+	if len(result.Events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(result.Events))
+	}
+	if len(result.Events[0].Categories) != 2 {
+		t.Fatalf("expected 2 categories, got %d", len(result.Events[0].Categories))
+	}
+	if result.Events[0].Categories[0].Type != "JavaScript" {
+		t.Errorf("expected category type JavaScript, got %q", result.Events[0].Categories[0].Type)
+	}
+	if result.Events[0].Categories[0].Size != 1024 {
+		t.Errorf("expected category size 1024, got %d", result.Events[0].Categories[0].Size)
 	}
 }
 
@@ -502,23 +573,52 @@ func TestHeapSnapshot(t *testing.T) {
 	}
 }
 
-func TestHeapStartTracking(t *testing.T) {
+func TestHeapTrackingCollector(t *testing.T) {
 	mock, client := setup(t)
 	mock.HandleFunc("Heap.startTracking", map[string]interface{}{})
-
-	ctx := context.Background()
-	if err := tools.HeapStartTracking(ctx, client); err != nil {
-		t.Fatalf("HeapStartTracking returned error: %v", err)
-	}
-}
-
-func TestHeapStopTracking(t *testing.T) {
-	mock, client := setup(t)
 	mock.HandleFunc("Heap.stopTracking", map[string]interface{}{})
 
+	collector := tools.NewHeapTrackingCollector()
 	ctx := context.Background()
-	if err := tools.HeapStopTracking(ctx, client); err != nil {
-		t.Fatalf("HeapStopTracking returned error: %v", err)
+	if err := collector.Start(ctx, client); err != nil {
+		t.Fatalf("HeapTrackingCollector.Start: %v", err)
+	}
+
+	// Send garbageCollected events (the only events we collect — snapshot
+	// events from trackingStart/trackingComplete are intentionally ignored
+	// because their 50-200MB payloads crash iwdp).
+	if err := mock.SendEvent("Heap.garbageCollected", map[string]interface{}{
+		"collection": map[string]interface{}{
+			"type":      "full",
+			"startTime": 1100.0,
+			"endTime":   1150.0,
+		},
+	}); err != nil {
+		t.Fatalf("SendEvent garbageCollected: %v", err)
+	}
+	if err := mock.SendEvent("Heap.garbageCollected", map[string]interface{}{
+		"collection": map[string]interface{}{
+			"type":      "partial",
+			"startTime": 1200.0,
+			"endTime":   1210.0,
+		},
+	}); err != nil {
+		t.Fatalf("SendEvent garbageCollected 2: %v", err)
+	}
+	time.Sleep(100 * time.Millisecond)
+
+	result, err := collector.Stop(ctx, client)
+	if err != nil {
+		t.Fatalf("HeapTrackingCollector.Stop: %v", err)
+	}
+	if len(result.GCEvents) != 2 {
+		t.Fatalf("expected 2 GC events, got %d", len(result.GCEvents))
+	}
+	if result.GCEvents[0].Type != "full" {
+		t.Errorf("expected GC type %q, got %q", "full", result.GCEvents[0].Type)
+	}
+	if result.GCEvents[1].Type != "partial" {
+		t.Errorf("expected GC type %q, got %q", "partial", result.GCEvents[1].Type)
 	}
 }
 
@@ -536,66 +636,94 @@ func TestHeapGC(t *testing.T) {
 // Profiler domain
 // ---------------------------------------------------------------------------
 
-func TestCPUStartProfiling(t *testing.T) {
+func TestCPUProfilerCollector(t *testing.T) {
 	mock, client := setup(t)
 	mock.HandleFunc("CPUProfiler.startTracking", map[string]interface{}{})
+	mock.HandleFunc("CPUProfiler.stopTracking", map[string]interface{}{})
 
+	collector := tools.NewCPUProfilerCollector()
 	ctx := context.Background()
-	if err := tools.CPUStartProfiling(ctx, client); err != nil {
-		t.Fatalf("CPUStartProfiling returned error: %v", err)
+	if err := collector.Start(ctx, client); err != nil {
+		t.Fatalf("CPUProfilerCollector.Start: %v", err)
 	}
-}
 
-func TestCPUStopProfiling(t *testing.T) {
-	mock, client := setup(t)
-	mock.HandleFunc("CPUProfiler.stopTracking", map[string]interface{}{
-		"profile": map[string]interface{}{
-			"nodes":     []interface{}{},
-			"startTime": 0,
-			"endTime":   1000,
+	// Send a trackingUpdate event.
+	if err := mock.SendEvent("CPUProfiler.trackingUpdate", map[string]interface{}{
+		"event": map[string]interface{}{
+			"timestamp": 1000.0,
+			"usage":     42.5,
 		},
-	})
+	}); err != nil {
+		t.Fatalf("SendEvent trackingUpdate: %v", err)
+	}
+	time.Sleep(100 * time.Millisecond)
 
-	ctx := context.Background()
-	result, err := tools.CPUStopProfiling(ctx, client)
+	// Send trackingComplete to signal stop.
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		_ = mock.SendEvent("CPUProfiler.trackingComplete", map[string]interface{}{
+			"timestamp": 2000.0,
+		})
+	}()
+
+	result, err := collector.Stop(ctx, client)
 	if err != nil {
-		t.Fatalf("CPUStopProfiling returned error: %v", err)
+		t.Fatalf("CPUProfilerCollector.Stop: %v", err)
 	}
-	if result == nil {
-		t.Fatal("expected non-nil result")
+	if len(result.Events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(result.Events))
 	}
-	var parsed map[string]interface{}
-	if err := json.Unmarshal(result, &parsed); err != nil {
-		t.Fatalf("failed to parse result JSON: %v", err)
-	}
-	if _, ok := parsed["profile"]; !ok {
-		t.Errorf("expected profile key in result")
+	if result.Events[0].Usage != 42.5 {
+		t.Errorf("expected usage 42.5, got %f", result.Events[0].Usage)
 	}
 }
 
-func TestScriptStartProfiling(t *testing.T) {
+func TestScriptProfilerCollector(t *testing.T) {
 	mock, client := setup(t)
 	mock.HandleFunc("ScriptProfiler.startTracking", map[string]interface{}{})
+	mock.HandleFunc("ScriptProfiler.stopTracking", map[string]interface{}{})
 
+	collector := tools.NewScriptProfilerCollector()
 	ctx := context.Background()
-	if err := tools.ScriptStartProfiling(ctx, client); err != nil {
-		t.Fatalf("ScriptStartProfiling returned error: %v", err)
+	if err := collector.Start(ctx, client); err != nil {
+		t.Fatalf("ScriptProfilerCollector.Start: %v", err)
 	}
-}
 
-func TestScriptStopProfiling(t *testing.T) {
-	mock, client := setup(t)
-	mock.HandleFunc("ScriptProfiler.stopTracking", map[string]interface{}{
-		"profiles": []interface{}{},
-	})
+	// Send a trackingUpdate event.
+	if err := mock.SendEvent("ScriptProfiler.trackingUpdate", map[string]interface{}{
+		"event": map[string]interface{}{
+			"startTime": 100.0,
+			"endTime":   200.0,
+			"type":      "API",
+		},
+	}); err != nil {
+		t.Fatalf("SendEvent trackingUpdate: %v", err)
+	}
+	time.Sleep(100 * time.Millisecond)
 
-	ctx := context.Background()
-	result, err := tools.ScriptStopProfiling(ctx, client)
+	// Send trackingComplete with samples.
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		_ = mock.SendEvent("ScriptProfiler.trackingComplete", map[string]interface{}{
+			"timestamp": 300.0,
+			"samples": map[string]interface{}{
+				"stackTraces": []interface{}{},
+			},
+		})
+	}()
+
+	result, err := collector.Stop(ctx, client)
 	if err != nil {
-		t.Fatalf("ScriptStopProfiling returned error: %v", err)
+		t.Fatalf("ScriptProfilerCollector.Stop: %v", err)
 	}
-	if result == nil {
-		t.Fatal("expected non-nil result")
+	if len(result.Events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(result.Events))
+	}
+	if result.Events[0].Type != "API" {
+		t.Errorf("expected type API, got %q", result.Events[0].Type)
+	}
+	if result.Samples == nil {
+		t.Error("expected non-nil samples")
 	}
 }
 
@@ -623,23 +751,50 @@ func TestAnimationDisable(t *testing.T) {
 	}
 }
 
-func TestAnimationStartTracking(t *testing.T) {
+func TestAnimationTrackingCollector(t *testing.T) {
 	mock, client := setup(t)
 	mock.HandleFunc("Animation.startTracking", map[string]interface{}{})
-
-	ctx := context.Background()
-	if err := tools.AnimationStartTracking(ctx, client); err != nil {
-		t.Fatalf("AnimationStartTracking returned error: %v", err)
-	}
-}
-
-func TestAnimationStopTracking(t *testing.T) {
-	mock, client := setup(t)
 	mock.HandleFunc("Animation.stopTracking", map[string]interface{}{})
 
+	collector := tools.NewAnimationTrackingCollector()
 	ctx := context.Background()
-	if err := tools.AnimationStopTracking(ctx, client); err != nil {
-		t.Fatalf("AnimationStopTracking returned error: %v", err)
+	if err := collector.Start(ctx, client); err != nil {
+		t.Fatalf("AnimationTrackingCollector.Start: %v", err)
+	}
+
+	// Send a trackingUpdate event.
+	if err := mock.SendEvent("Animation.trackingUpdate", map[string]interface{}{
+		"timestamp": 1000.0,
+		"event": map[string]interface{}{
+			"trackingAnimationId": "anim-1",
+			"animationState":      "active",
+			"animationName":       "fadeIn",
+		},
+	}); err != nil {
+		t.Fatalf("SendEvent trackingUpdate: %v", err)
+	}
+	time.Sleep(100 * time.Millisecond)
+
+	// Send trackingComplete to signal stop.
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		_ = mock.SendEvent("Animation.trackingComplete", map[string]interface{}{
+			"timestamp": 2000.0,
+		})
+	}()
+
+	result, err := collector.Stop(ctx, client)
+	if err != nil {
+		t.Fatalf("AnimationTrackingCollector.Stop: %v", err)
+	}
+	if len(result.Events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(result.Events))
+	}
+	if result.Events[0].Event.AnimationState != "active" {
+		t.Errorf("expected state active, got %q", result.Events[0].Event.AnimationState)
+	}
+	if result.Events[0].Event.AnimationName != "fadeIn" {
+		t.Errorf("expected animation name fadeIn, got %q", result.Events[0].Event.AnimationName)
 	}
 }
 
@@ -734,25 +889,25 @@ func TestGetCanvasContent(t *testing.T) {
 func TestStartCanvasRecording(t *testing.T) {
 	mock, client := setup(t)
 
-	var receivedSingleFrame bool
+	var receivedFrameCount float64
 	mock.Handle("Canvas.startRecording", func(_ string, params json.RawMessage) (interface{}, error) {
 		var p struct {
-			CanvasID    string `json:"canvasId"`
-			SingleFrame bool   `json:"singleFrame"`
+			CanvasID   string  `json:"canvasId"`
+			FrameCount float64 `json:"frameCount"`
 		}
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, err
 		}
-		receivedSingleFrame = p.SingleFrame
+		receivedFrameCount = p.FrameCount
 		return map[string]interface{}{}, nil
 	})
 
 	ctx := context.Background()
-	if err := tools.StartCanvasRecording(ctx, client, "canvas-1", true); err != nil {
+	if err := tools.StartCanvasRecording(ctx, client, "canvas-1", 1); err != nil {
 		t.Fatalf("StartCanvasRecording returned error: %v", err)
 	}
-	if !receivedSingleFrame {
-		t.Errorf("expected singleFrame to be true")
+	if int(receivedFrameCount) != 1 {
+		t.Errorf("expected frameCount 1, got %v", receivedFrameCount)
 	}
 }
 
@@ -842,29 +997,6 @@ func TestGetCompositingReasons(t *testing.T) {
 	}
 }
 
-func TestGetLayerContent(t *testing.T) {
-	mock, client := setup(t)
-	mock.HandleFunc("LayerTree.snapshotLayer", map[string]interface{}{
-		"snapshotId": "snap-1",
-	})
-
-	ctx := context.Background()
-	result, err := tools.GetLayerContent(ctx, client, "layer-1")
-	if err != nil {
-		t.Fatalf("GetLayerContent returned error: %v", err)
-	}
-	if result == nil {
-		t.Fatal("expected non-nil result")
-	}
-	var parsed map[string]interface{}
-	if err := json.Unmarshal(result, &parsed); err != nil {
-		t.Fatalf("failed to parse result JSON: %v", err)
-	}
-	if parsed["snapshotId"] != "snap-1" {
-		t.Errorf("expected snapshotId %q, got %v", "snap-1", parsed["snapshotId"])
-	}
-}
-
 // ---------------------------------------------------------------------------
 // Worker domain
 // ---------------------------------------------------------------------------
@@ -920,10 +1052,16 @@ func TestSendToWorker(t *testing.T) {
 
 func TestGetServiceWorkerInfo(t *testing.T) {
 	mock, client := setup(t)
-	mock.HandleFunc("ServiceWorker.getInitializationInfo", map[string]interface{}{
-		"info": map[string]interface{}{
-			"registrations": []interface{}{},
+	mock.HandleFunc("Runtime.evaluate", map[string]interface{}{
+		"result": map[string]interface{}{
+			"type": "object",
+			"value": map[string]interface{}{
+				"supported":     true,
+				"controller":    nil,
+				"registrations": []interface{}{},
+			},
 		},
+		"wasThrown": false,
 	})
 
 	ctx := context.Background()

@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/nnemirovsky/iwdp-mcp/internal/webkit"
 )
@@ -28,11 +29,51 @@ func SendToWorker(ctx context.Context, client *webkit.Client, workerID, message 
 	return err
 }
 
-// GetServiceWorkerInfo retrieves service worker initialization info.
+// GetServiceWorkerInfo retrieves service worker registrations for the current page
+// via the navigator.serviceWorker JS API (works on page connections without the
+// ServiceWorker inspector domain).
 func GetServiceWorkerInfo(ctx context.Context, client *webkit.Client) (json.RawMessage, error) {
-	result, err := client.Send(ctx, "ServiceWorker.getInitializationInfo", nil)
+	const script = `(async () => {
+		if (!navigator.serviceWorker) return {supported: false};
+		const regs = await navigator.serviceWorker.getRegistrations();
+		const controller = navigator.serviceWorker.controller;
+		return {
+			supported: true,
+			controller: controller ? {
+				scriptURL: controller.scriptURL,
+				state: controller.state,
+			} : null,
+			registrations: regs.map(r => ({
+				scope: r.scope,
+				active: r.active ? {scriptURL: r.active.scriptURL, state: r.active.state} : null,
+				waiting: r.waiting ? {scriptURL: r.waiting.scriptURL, state: r.waiting.state} : null,
+				installing: r.installing ? {scriptURL: r.installing.scriptURL, state: r.installing.state} : null,
+			})),
+		};
+	})()`
+	result, err := client.Send(ctx, "Runtime.evaluate", map[string]interface{}{
+		"expression":    script,
+		"returnByValue": true,
+		"awaitPromise":  true,
+	})
 	if err != nil {
 		return nil, err
 	}
-	return result, nil
+
+	var resp struct {
+		Result struct {
+			Value json.RawMessage `json:"value"`
+		} `json:"result"`
+		WasThrown bool `json:"wasThrown"`
+	}
+	if err := json.Unmarshal(result, &resp); err != nil {
+		return nil, err
+	}
+	if resp.WasThrown {
+		return nil, fmt.Errorf("service worker query failed")
+	}
+	if len(resp.Result.Value) == 0 {
+		return json.RawMessage(`{"supported": false}`), nil
+	}
+	return resp.Result.Value, nil
 }

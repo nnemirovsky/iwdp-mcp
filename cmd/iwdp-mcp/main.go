@@ -20,12 +20,17 @@ import (
 
 // session holds the active WebKit client and collectors.
 type session struct {
-	mu                    sync.Mutex
-	client                *webkit.Client
-	networkMonitor        *tools.NetworkMonitor
-	consoleCollector      *tools.ConsoleCollector
-	timelineCollector     *tools.TimelineCollector
-	interceptionCollector *tools.InterceptionCollector
+	mu                         sync.Mutex
+	client                     *webkit.Client
+	networkMonitor             *tools.NetworkMonitor
+	consoleCollector           *tools.ConsoleCollector
+	timelineCollector          *tools.TimelineCollector
+	interceptionCollector      *tools.InterceptionCollector
+	cpuProfilerCollector       *tools.CPUProfilerCollector
+	scriptProfilerCollector    *tools.ScriptProfilerCollector
+	memoryTrackingCollector    *tools.MemoryTrackingCollector
+	heapTrackingCollector      *tools.HeapTrackingCollector
+	animationTrackingCollector *tools.AnimationTrackingCollector
 }
 
 var sess session
@@ -58,7 +63,7 @@ func lookupInterceptStage(requestID string) string {
 func main() {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "iwdp-mcp",
-		Version: "0.3.5",
+		Version: "0.4.0",
 	}, nil)
 
 	registerTools(server)
@@ -236,8 +241,7 @@ type InterceptWithResponseInput struct {
 }
 
 type SetEmulatedConditionsInput struct {
-	BytesPerSecondLimit int     `json:"bytes_per_second_limit" jsonschema:"bytes per second limit"`
-	LatencyMs           float64 `json:"latency_ms" jsonschema:"latency in milliseconds"`
+	BytesPerSecondLimit int `json:"bytes_per_second_limit" jsonschema:"bytes per second limit"`
 }
 
 type SetResourceCachingDisabledInput struct {
@@ -330,7 +334,8 @@ type DOMBreakpointInput struct {
 }
 
 type EventBreakpointInput struct {
-	EventName string `json:"event_name"`
+	BreakpointType string `json:"breakpoint_type" jsonschema:"required,breakpoint type: animation-frame, interval, listener, or timeout"`
+	EventName      string `json:"event_name"`
 }
 
 type URLBreakpointInput struct {
@@ -358,8 +363,8 @@ type AnimationIDInput struct {
 }
 
 type CanvasIDInput struct {
-	CanvasID    string `json:"canvas_id"`
-	SingleFrame bool   `json:"single_frame,omitempty"`
+	CanvasID   string `json:"canvas_id"`
+	FrameCount int    `json:"frame_count,omitempty" jsonschema:"number of frames to record (0 for unlimited)"`
 }
 
 type ShaderSourceInput struct {
@@ -1126,7 +1131,7 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, OKOutput{}, err
 		}
-		return nil, ok(), tools.SetEmulatedConditions(ctx, c, input.BytesPerSecondLimit, input.LatencyMs)
+		return nil, ok(), tools.SetEmulatedConditions(ctx, c, input.BytesPerSecondLimit)
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -1568,7 +1573,7 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, OKOutput{}, err
 		}
-		return nil, ok(), tools.SetEventBreakpoint(ctx, c, input.EventName)
+		return nil, ok(), tools.SetEventBreakpoint(ctx, c, input.BreakpointType, input.EventName)
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -1578,7 +1583,7 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, OKOutput{}, err
 		}
-		return nil, ok(), tools.RemoveEventBreakpoint(ctx, c, input.EventName)
+		return nil, ok(), tools.RemoveEventBreakpoint(ctx, c, input.BreakpointType, input.EventName)
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -1652,23 +1657,43 @@ func registerTools(server *mcp.Server) {
 
 	// --- Memory & Heap ---
 	mcp.AddTool(server, &mcp.Tool{
-		Name: "memory_start_tracking", Description: "Start tracking memory usage",
+		Name: "memory_start_tracking", Description: "Start tracking memory usage — collects memory category events",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ EmptyInput) (*mcp.CallToolResult, any, error) {
 		c, err := getClient(ctx)
 		if err != nil {
 			return nil, OKOutput{}, err
 		}
-		return nil, ok(), tools.MemoryStartTracking(ctx, c)
+		sess.mu.Lock()
+		if sess.memoryTrackingCollector == nil {
+			sess.memoryTrackingCollector = tools.NewMemoryTrackingCollector()
+		}
+		collector := sess.memoryTrackingCollector
+		sess.mu.Unlock()
+		return nil, ok(), collector.Start(ctx, c)
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name: "memory_stop_tracking", Description: "Stop tracking memory usage",
+		Name: "memory_stop_tracking", Description: "Stop tracking memory usage and get collected memory events",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ EmptyInput) (*mcp.CallToolResult, any, error) {
 		c, err := getClient(ctx)
 		if err != nil {
-			return nil, OKOutput{}, err
+			return nil, RawOutput{}, err
 		}
-		return nil, ok(), tools.MemoryStopTracking(ctx, c)
+		sess.mu.Lock()
+		collector := sess.memoryTrackingCollector
+		sess.mu.Unlock()
+		if collector == nil {
+			return nil, RawOutput{}, fmt.Errorf("memory tracking not started — use memory_start_tracking first")
+		}
+		result, err := collector.Stop(ctx, c)
+		if err != nil {
+			return nil, RawOutput{}, err
+		}
+		if fileResult, ferr := largeResultToFile(result, "memory-tracking"); fileResult != nil {
+			return fileResult, nil, ferr
+		}
+		data, _ := json.Marshal(result)
+		return nil, RawOutput{Result: data}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -1690,23 +1715,43 @@ func registerTools(server *mcp.Server) {
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name: "heap_start_tracking", Description: "Start tracking heap allocations",
+		Name: "heap_start_tracking", Description: "Start tracking heap allocations — collects heap snapshot events",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ EmptyInput) (*mcp.CallToolResult, any, error) {
 		c, err := getClient(ctx)
 		if err != nil {
 			return nil, OKOutput{}, err
 		}
-		return nil, ok(), tools.HeapStartTracking(ctx, c)
+		sess.mu.Lock()
+		if sess.heapTrackingCollector == nil {
+			sess.heapTrackingCollector = tools.NewHeapTrackingCollector()
+		}
+		collector := sess.heapTrackingCollector
+		sess.mu.Unlock()
+		return nil, ok(), collector.Start(ctx, c)
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name: "heap_stop_tracking", Description: "Stop tracking heap allocations",
+		Name: "heap_stop_tracking", Description: "Stop tracking heap allocations and get collected heap events",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ EmptyInput) (*mcp.CallToolResult, any, error) {
 		c, err := getClient(ctx)
 		if err != nil {
-			return nil, OKOutput{}, err
+			return nil, RawOutput{}, err
 		}
-		return nil, ok(), tools.HeapStopTracking(ctx, c)
+		sess.mu.Lock()
+		collector := sess.heapTrackingCollector
+		sess.mu.Unlock()
+		if collector == nil {
+			return nil, RawOutput{}, fmt.Errorf("heap tracking not started — use heap_start_tracking first")
+		}
+		result, err := collector.Stop(ctx, c)
+		if err != nil {
+			return nil, RawOutput{}, err
+		}
+		if fileResult, ferr := largeResultToFile(result, "heap-tracking"); fileResult != nil {
+			return fileResult, nil, ferr
+		}
+		data, _ := json.Marshal(result)
+		return nil, RawOutput{Result: data}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -1721,51 +1766,83 @@ func registerTools(server *mcp.Server) {
 
 	// --- Profiler ---
 	mcp.AddTool(server, &mcp.Tool{
-		Name: "cpu_start_profiling", Description: "Start CPU profiling",
+		Name: "cpu_start_profiling", Description: "Start CPU profiling — collects CPU usage samples via events",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ EmptyInput) (*mcp.CallToolResult, any, error) {
 		c, err := getClient(ctx)
 		if err != nil {
 			return nil, OKOutput{}, err
 		}
-		return nil, ok(), tools.CPUStartProfiling(ctx, c)
+		sess.mu.Lock()
+		if sess.cpuProfilerCollector == nil {
+			sess.cpuProfilerCollector = tools.NewCPUProfilerCollector()
+		}
+		collector := sess.cpuProfilerCollector
+		sess.mu.Unlock()
+		return nil, ok(), collector.Start(ctx, c)
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name: "cpu_stop_profiling", Description: "Stop CPU profiling and get results",
+		Name: "cpu_stop_profiling", Description: "Stop CPU profiling and get collected CPU usage events",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ EmptyInput) (*mcp.CallToolResult, any, error) {
 		c, err := getClient(ctx)
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		result, err := tools.CPUStopProfiling(ctx, c)
+		sess.mu.Lock()
+		collector := sess.cpuProfilerCollector
+		sess.mu.Unlock()
+		if collector == nil {
+			return nil, RawOutput{}, fmt.Errorf("CPU profiling not started — use cpu_start_profiling first")
+		}
+		result, err := collector.Stop(ctx, c)
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		return nil, RawOutput{Result: result}, nil
+		if fileResult, ferr := largeResultToFile(result, "cpu-profile"); fileResult != nil {
+			return fileResult, nil, ferr
+		}
+		data, _ := json.Marshal(result)
+		return nil, RawOutput{Result: data}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name: "script_start_profiling", Description: "Start script execution profiling",
+		Name: "script_start_profiling", Description: "Start script execution profiling with stack sampling",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ EmptyInput) (*mcp.CallToolResult, any, error) {
 		c, err := getClient(ctx)
 		if err != nil {
 			return nil, OKOutput{}, err
 		}
-		return nil, ok(), tools.ScriptStartProfiling(ctx, c)
+		sess.mu.Lock()
+		if sess.scriptProfilerCollector == nil {
+			sess.scriptProfilerCollector = tools.NewScriptProfilerCollector()
+		}
+		collector := sess.scriptProfilerCollector
+		sess.mu.Unlock()
+		return nil, ok(), collector.Start(ctx, c)
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name: "script_stop_profiling", Description: "Stop script profiling and get results",
+		Name: "script_stop_profiling", Description: "Stop script profiling and get execution events + stack samples",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ EmptyInput) (*mcp.CallToolResult, any, error) {
 		c, err := getClient(ctx)
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		result, err := tools.ScriptStopProfiling(ctx, c)
+		sess.mu.Lock()
+		collector := sess.scriptProfilerCollector
+		sess.mu.Unlock()
+		if collector == nil {
+			return nil, RawOutput{}, fmt.Errorf("script profiling not started — use script_start_profiling first")
+		}
+		result, err := collector.Stop(ctx, c)
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		return nil, RawOutput{Result: result}, nil
+		if fileResult, ferr := largeResultToFile(result, "script-profile"); fileResult != nil {
+			return fileResult, nil, ferr
+		}
+		data, _ := json.Marshal(result)
+		return nil, RawOutput{Result: data}, nil
 	})
 
 	// --- Animation ---
@@ -1790,23 +1867,43 @@ func registerTools(server *mcp.Server) {
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name: "animation_start_tracking", Description: "Start animation profiling",
+		Name: "animation_start_tracking", Description: "Start animation profiling — collects animation events",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ EmptyInput) (*mcp.CallToolResult, any, error) {
 		c, err := getClient(ctx)
 		if err != nil {
 			return nil, OKOutput{}, err
 		}
-		return nil, ok(), tools.AnimationStartTracking(ctx, c)
+		sess.mu.Lock()
+		if sess.animationTrackingCollector == nil {
+			sess.animationTrackingCollector = tools.NewAnimationTrackingCollector()
+		}
+		collector := sess.animationTrackingCollector
+		sess.mu.Unlock()
+		return nil, ok(), collector.Start(ctx, c)
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name: "animation_stop_tracking", Description: "Stop animation profiling",
+		Name: "animation_stop_tracking", Description: "Stop animation profiling and get collected animation events",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ EmptyInput) (*mcp.CallToolResult, any, error) {
 		c, err := getClient(ctx)
 		if err != nil {
-			return nil, OKOutput{}, err
+			return nil, RawOutput{}, err
 		}
-		return nil, ok(), tools.AnimationStopTracking(ctx, c)
+		sess.mu.Lock()
+		collector := sess.animationTrackingCollector
+		sess.mu.Unlock()
+		if collector == nil {
+			return nil, RawOutput{}, fmt.Errorf("animation tracking not started — use animation_start_tracking first")
+		}
+		result, err := collector.Stop(ctx, c)
+		if err != nil {
+			return nil, RawOutput{}, err
+		}
+		if fileResult, ferr := largeResultToFile(result, "animation-tracking"); fileResult != nil {
+			return fileResult, nil, ferr
+		}
+		data, _ := json.Marshal(result)
+		return nil, RawOutput{Result: data}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -1879,7 +1976,7 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, OKOutput{}, err
 		}
-		return nil, ok(), tools.StartCanvasRecording(ctx, c, input.CanvasID, input.SingleFrame)
+		return nil, ok(), tools.StartCanvasRecording(ctx, c, input.CanvasID, input.FrameCount)
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -1933,20 +2030,6 @@ func registerTools(server *mcp.Server) {
 			return nil, RawOutput{}, err
 		}
 		return nil, RawOutput{Result: result}, nil
-	})
-
-	mcp.AddTool(server, &mcp.Tool{
-		Name: "get_layer_content", Description: "Get layer snapshot as image",
-	}, func(ctx context.Context, req *mcp.CallToolRequest, input LayerIDInput) (*mcp.CallToolResult, any, error) {
-		c, err := getClient(ctx)
-		if err != nil {
-			return nil, RawOutput{}, err
-		}
-		content, err := tools.GetLayerContent(ctx, c, input.LayerID)
-		if err != nil {
-			return nil, RawOutput{}, err
-		}
-		return nil, RawOutput{Result: content}, nil
 	})
 
 	// --- Workers ---

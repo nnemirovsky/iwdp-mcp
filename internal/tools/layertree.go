@@ -28,14 +28,3 @@ func GetCompositingReasons(ctx context.Context, client *webkit.Client, layerID s
 	}
 	return result, nil
 }
-
-// GetLayerContent takes a snapshot of a layer and returns the raw result.
-func GetLayerContent(ctx context.Context, client *webkit.Client, layerID string) (json.RawMessage, error) {
-	result, err := client.Send(ctx, "LayerTree.snapshotLayer", map[string]interface{}{
-		"layerId": layerID,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}

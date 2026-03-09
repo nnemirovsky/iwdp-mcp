@@ -31,7 +31,9 @@ func SetBreakpointByURL(ctx context.Context, client *webkit.Client, url string, 
 		params["columnNumber"] = *columnNumber
 	}
 	if condition != "" {
-		params["condition"] = condition
+		params["options"] = map[string]interface{}{
+			"condition": condition,
+		}
 	}
 
 	result, err := client.Send(ctx, "Debugger.setBreakpointByUrl", params)
@@ -178,17 +180,21 @@ func RemoveDOMBreakpoint(ctx context.Context, client *webkit.Client, nodeID int,
 }
 
 // SetEventBreakpoint sets a breakpoint on a named event.
-func SetEventBreakpoint(ctx context.Context, client *webkit.Client, eventName string) error {
+// breakpointType must be one of: "animation-frame", "interval", "listener", "timeout".
+func SetEventBreakpoint(ctx context.Context, client *webkit.Client, breakpointType, eventName string) error {
 	_, err := client.Send(ctx, "DOMDebugger.setEventBreakpoint", map[string]interface{}{
-		"eventName": eventName,
+		"breakpointType": breakpointType,
+		"eventName":      eventName,
 	})
 	return err
 }
 
 // RemoveEventBreakpoint removes a breakpoint from a named event.
-func RemoveEventBreakpoint(ctx context.Context, client *webkit.Client, eventName string) error {
+// breakpointType must be one of: "animation-frame", "interval", "listener", "timeout".
+func RemoveEventBreakpoint(ctx context.Context, client *webkit.Client, breakpointType, eventName string) error {
 	_, err := client.Send(ctx, "DOMDebugger.removeEventBreakpoint", map[string]interface{}{
-		"eventName": eventName,
+		"breakpointType": breakpointType,
+		"eventName":      eventName,
 	})
 	return err
 }

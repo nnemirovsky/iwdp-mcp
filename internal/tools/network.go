@@ -390,7 +390,7 @@ func InterceptWithResponse(ctx context.Context, client *webkit.Client, requestID
 	_, err := client.Send(ctx, "Network.interceptWithResponse", map[string]interface{}{
 		"requestId":     requestID,
 		"stage":         stage,
-		"statusCode":    statusCode,
+		"status":        statusCode,
 		"headers":       headers,
 		"content":       content,
 		"base64Encoded": base64Encoded,
@@ -398,11 +398,10 @@ func InterceptWithResponse(ctx context.Context, client *webkit.Client, requestID
 	return err
 }
 
-// SetEmulatedConditions configures network emulation with bandwidth and latency constraints.
-func SetEmulatedConditions(ctx context.Context, client *webkit.Client, bytesPerSecondLimit int, latencyMs float64) error {
+// SetEmulatedConditions configures network emulation with a bandwidth constraint.
+func SetEmulatedConditions(ctx context.Context, client *webkit.Client, bytesPerSecondLimit int) error {
 	_, err := client.Send(ctx, "Network.setEmulatedConditions", map[string]interface{}{
 		"bytesPerSecondLimit": bytesPerSecondLimit,
-		"latencyMs":           latencyMs,
 	})
 	return err
 }

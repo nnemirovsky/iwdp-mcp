@@ -1131,29 +1131,23 @@ func TestSetEmulatedConditions(t *testing.T) {
 	mock, client := setup(t)
 
 	var receivedBandwidth float64
-	var receivedLatency float64
 	mock.Handle("Network.setEmulatedConditions", func(_ string, params json.RawMessage) (interface{}, error) {
 		var p struct {
 			BytesPerSecondLimit float64 `json:"bytesPerSecondLimit"`
-			LatencyMs           float64 `json:"latencyMs"`
 		}
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, err
 		}
 		receivedBandwidth = p.BytesPerSecondLimit
-		receivedLatency = p.LatencyMs
 		return map[string]interface{}{}, nil
 	})
 
 	ctx := context.Background()
-	if err := tools.SetEmulatedConditions(ctx, client, 1000000, 100.5); err != nil {
+	if err := tools.SetEmulatedConditions(ctx, client, 1000000); err != nil {
 		t.Fatalf("SetEmulatedConditions returned error: %v", err)
 	}
 	if receivedBandwidth != 1000000 {
 		t.Errorf("expected bytesPerSecondLimit 1000000, got %v", receivedBandwidth)
-	}
-	if receivedLatency != 100.5 {
-		t.Errorf("expected latencyMs 100.5, got %v", receivedLatency)
 	}
 }
 
