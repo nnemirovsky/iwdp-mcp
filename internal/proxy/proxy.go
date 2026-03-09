@@ -38,8 +38,9 @@ func IsRunning() bool {
 }
 
 // Start launches ios_webkit_debug_proxy as a background process.
-func Start(ctx context.Context) error {
-	cmd := exec.CommandContext(ctx, "ios_webkit_debug_proxy", "--no-frontend")
+// Uses a detached context so iwdp outlives the MCP server if needed.
+func Start(_ context.Context) error {
+	cmd := exec.Command("ios_webkit_debug_proxy", "-F")
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("starting ios_webkit_debug_proxy: %w\nMake sure it is installed: brew install ios-webkit-debug-proxy", err)
 	}
@@ -70,9 +71,15 @@ func EnsureRunning(ctx context.Context) error {
 // Restart kills any existing iwdp process and starts a fresh one.
 // Use this when iwdp is in a bad state (e.g., after a WebSocket crash).
 func Restart(ctx context.Context) error {
-	// Best-effort kill — ignore errors if not running
-	_ = exec.Command("pkill", "-f", "ios_webkit_debug_proxy").Run()
-	time.Sleep(500 * time.Millisecond)
+	// Best-effort kill — use exact binary name to avoid matching unrelated processes
+	_ = exec.Command("pkill", "-x", "ios_webkit_debug_proxy").Run()
+	// Wait for the process to fully exit and release the port
+	for i := 0; i < 10; i++ {
+		time.Sleep(300 * time.Millisecond)
+		if !IsRunning() {
+			break
+		}
+	}
 	return Start(ctx)
 }
 
