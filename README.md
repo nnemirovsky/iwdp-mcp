@@ -8,7 +8,7 @@
 [![Install in Claude Code](https://img.shields.io/badge/Claude_Code-Install_Plugin-F97316?style=flat-square&logo=claude&logoColor=white)](#claude-code)
 [![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=iwdp-mcp&config=%7B%22command%22%3A%22iwdp-mcp%22%7D)
 [![Install in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install_Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=iwdp-mcp&config=%7B%22command%22%3A%22iwdp-mcp%22%7D&quality=insiders)
-[![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=iwdp-mcp&config=eyJjb21tYW5kIjoiaXdkcC1tY3AifQ==)
+[![Install in Cursor](https://img.shields.io/badge/Cursor-Install_Server-7B3FE4?style=flat-square&logo=cursor&logoColor=white)](https://cursor.com/en/install-mcp?name=iwdp-mcp&config=eyJjb21tYW5kIjoiaXdkcC1tY3AifQ==)
 [![Install in Windsurf](https://img.shields.io/badge/Windsurf-Install_Server-5C2D91?style=flat-square&logo=codeium&logoColor=white)](#windsurf)
 [![Install in Codex](https://img.shields.io/badge/Codex_CLI-Install_Server-74AA9C?style=flat-square&logo=openai&logoColor=white)](#codex-cli)
 [![Install in Antigravity](https://img.shields.io/badge/Antigravity-Install_Server-4285F4?style=flat-square&logo=google&logoColor=white)](#antigravity)
