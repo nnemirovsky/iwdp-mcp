@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -38,7 +39,7 @@ func getClient(ctx context.Context) (*webkit.Client, error) {
 func main() {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "iwdp-mcp",
-		Version: "0.1.0",
+		Version: "0.2.2",
 	}, nil)
 
 	registerTools(server)
@@ -94,8 +95,8 @@ type EvaluateScriptInput struct {
 	ReturnByValue bool   `json:"return_by_value,omitempty" jsonschema:"return result by value instead of reference"`
 }
 type EvaluateScriptOutput struct {
-	Result json.RawMessage `json:"result"`
-	Type   string          `json:"type"`
+	Result any    `json:"result"`
+	Type   string `json:"type"`
 }
 
 type CallFunctionInput struct {
@@ -373,7 +374,7 @@ type TypeTextInput struct {
 
 // Generic output wrappers
 type RawOutput struct {
-	Result json.RawMessage `json:"result"`
+	Result any `json:"result"`
 }
 
 type TextOutput struct {
@@ -389,6 +390,31 @@ type NodeIDOutput struct {
 }
 
 func ok() OKOutput { return OKOutput{OK: true} }
+
+// imageResultFromDataURL converts a data URL (data:image/png;base64,...) to an
+// MCP ImageContent result so the image is delivered natively instead of as a
+// multi-megabyte text string.
+func imageResultFromDataURL(dataURL string) (*mcp.CallToolResult, error) {
+	// Expected format: data:image/png;base64,<data>
+	const prefix = "data:image/png;base64,"
+	if !strings.HasPrefix(dataURL, prefix) {
+		// Fallback: return as text
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: dataURL}},
+		}, nil
+	}
+	b64Data := dataURL[len(prefix):]
+	rawBytes, err := base64.StdEncoding.DecodeString(b64Data)
+	if err != nil {
+		return nil, fmt.Errorf("decoding screenshot base64: %w", err)
+	}
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.ImageContent{
+			Data:     rawBytes,
+			MIMEType: "image/png",
+		}},
+	}, nil
+}
 
 func registerTools(server *mcp.Server) {
 	// --- Device/Page management ---
@@ -499,7 +525,11 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, TakeScreenshotOutput{}, err
 		}
-		return nil, TakeScreenshotOutput{DataURL: dataURL}, nil
+		result, err := imageResultFromDataURL(dataURL)
+		if err != nil {
+			return nil, TakeScreenshotOutput{}, err
+		}
+		return result, TakeScreenshotOutput{DataURL: dataURL}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -513,7 +543,11 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, TakeScreenshotOutput{}, err
 		}
-		return nil, TakeScreenshotOutput{DataURL: dataURL}, nil
+		result, err := imageResultFromDataURL(dataURL)
+		if err != nil {
+			return nil, TakeScreenshotOutput{}, err
+		}
+		return result, TakeScreenshotOutput{DataURL: dataURL}, nil
 	})
 
 	// --- Runtime ---
@@ -528,11 +562,7 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, EvaluateScriptOutput{}, err
 		}
-		val, err := json.Marshal(result.Result)
-		if err != nil {
-			return nil, EvaluateScriptOutput{}, fmt.Errorf("marshaling evaluate result: %w", err)
-		}
-		return nil, EvaluateScriptOutput{Result: val, Type: result.Result.Type}, nil
+		return nil, EvaluateScriptOutput{Result: result.Result, Type: result.Result.Type}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -546,11 +576,7 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		val, err := json.Marshal(result.Result)
-		if err != nil {
-			return nil, RawOutput{}, fmt.Errorf("marshaling call_function result: %w", err)
-		}
-		return nil, RawOutput{Result: val}, nil
+		return nil, RawOutput{Result: result.Result}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -564,11 +590,7 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		val, err := json.Marshal(props)
-		if err != nil {
-			return nil, RawOutput{}, fmt.Errorf("marshaling properties: %w", err)
-		}
-		return nil, RawOutput{Result: val}, nil
+		return nil, RawOutput{Result: props}, nil
 	})
 
 	// --- DOM ---
@@ -583,11 +605,7 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		val, err := json.Marshal(doc)
-		if err != nil {
-			return nil, RawOutput{}, fmt.Errorf("marshaling document: %w", err)
-		}
-		return nil, RawOutput{Result: val}, nil
+		return nil, RawOutput{Result: doc}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -657,11 +675,7 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		val, err := json.Marshal(listeners)
-		if err != nil {
-			return nil, RawOutput{}, fmt.Errorf("marshaling event listeners: %w", err)
-		}
-		return nil, RawOutput{Result: val}, nil
+		return nil, RawOutput{Result: listeners}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -710,11 +724,7 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		val, err := json.Marshal(props)
-		if err != nil {
-			return nil, RawOutput{}, fmt.Errorf("marshaling computed style: %w", err)
-		}
-		return nil, RawOutput{Result: val}, nil
+		return nil, RawOutput{Result: props}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -728,11 +738,7 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		val, err := json.Marshal(style)
-		if err != nil {
-			return nil, RawOutput{}, fmt.Errorf("marshaling inline styles: %w", err)
-		}
-		return nil, RawOutput{Result: val}, nil
+		return nil, RawOutput{Result: style}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -746,11 +752,7 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		val, err := json.Marshal(style)
-		if err != nil {
-			return nil, RawOutput{}, fmt.Errorf("marshaling style text: %w", err)
-		}
-		return nil, RawOutput{Result: val}, nil
+		return nil, RawOutput{Result: style}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -764,11 +766,7 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		val, err := json.Marshal(sheets)
-		if err != nil {
-			return nil, RawOutput{}, fmt.Errorf("marshaling stylesheets: %w", err)
-		}
-		return nil, RawOutput{Result: val}, nil
+		return nil, RawOutput{Result: sheets}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -835,14 +833,9 @@ func registerTools(server *mcp.Server) {
 		nm := sess.networkMonitor
 		sess.mu.Unlock()
 		if nm == nil {
-			return nil, RawOutput{Result: json.RawMessage("[]")}, nil
+			return nil, RawOutput{Result: []any{}}, nil
 		}
-		reqs := nm.GetRequests()
-		val, err := json.Marshal(reqs)
-		if err != nil {
-			return nil, RawOutput{}, fmt.Errorf("marshaling network requests: %w", err)
-		}
-		return nil, RawOutput{Result: val}, nil
+		return nil, RawOutput{Result: nm.GetRequests()}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -931,11 +924,7 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		val, err := json.Marshal(cookies)
-		if err != nil {
-			return nil, RawOutput{}, fmt.Errorf("marshaling cookies: %w", err)
-		}
-		return nil, RawOutput{Result: val}, nil
+		return nil, RawOutput{Result: cookies}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -978,11 +967,7 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		val, err := json.Marshal(items)
-		if err != nil {
-			return nil, RawOutput{}, fmt.Errorf("marshaling local storage: %w", err)
-		}
-		return nil, RawOutput{Result: val}, nil
+		return nil, RawOutput{Result: items}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -1026,11 +1011,7 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		val, err := json.Marshal(items)
-		if err != nil {
-			return nil, RawOutput{}, fmt.Errorf("marshaling session storage: %w", err)
-		}
-		return nil, RawOutput{Result: val}, nil
+		return nil, RawOutput{Result: items}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -1074,11 +1055,7 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		val, err := json.Marshal(dbs)
-		if err != nil {
-			return nil, RawOutput{}, fmt.Errorf("marshaling indexed databases: %w", err)
-		}
-		return nil, RawOutput{Result: val}, nil
+		return nil, RawOutput{Result: dbs}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -1149,14 +1126,9 @@ func registerTools(server *mcp.Server) {
 		cc := sess.consoleCollector
 		sess.mu.Unlock()
 		if cc == nil {
-			return nil, RawOutput{Result: json.RawMessage("[]")}, nil
+			return nil, RawOutput{Result: []any{}}, nil
 		}
-		msgs := cc.GetMessages()
-		val, err := json.Marshal(msgs)
-		if err != nil {
-			return nil, RawOutput{}, fmt.Errorf("marshaling console messages: %w", err)
-		}
-		return nil, RawOutput{Result: val}, nil
+		return nil, RawOutput{Result: cc.GetMessages()}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -1216,11 +1188,7 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		val, err := json.Marshal(map[string]interface{}{"breakpointId": bpID, "locations": locs})
-		if err != nil {
-			return nil, RawOutput{}, fmt.Errorf("marshaling breakpoint result: %w", err)
-		}
-		return nil, RawOutput{Result: val}, nil
+		return nil, RawOutput{Result: map[string]interface{}{"breakpointId": bpID, "locations": locs}}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -1322,11 +1290,7 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		val, err := json.Marshal(result)
-		if err != nil {
-			return nil, RawOutput{}, fmt.Errorf("marshaling evaluate_on_call_frame result: %w", err)
-		}
-		return nil, RawOutput{Result: val}, nil
+		return nil, RawOutput{Result: result}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -1439,14 +1403,9 @@ func registerTools(server *mcp.Server) {
 		tc := sess.timelineCollector
 		sess.mu.Unlock()
 		if tc == nil {
-			return nil, RawOutput{Result: json.RawMessage("[]")}, nil
+			return nil, RawOutput{Result: []any{}}, nil
 		}
-		events := tc.GetEvents()
-		val, err := json.Marshal(events)
-		if err != nil {
-			return nil, RawOutput{}, fmt.Errorf("marshaling timeline events: %w", err)
-		}
-		return nil, RawOutput{Result: val}, nil
+		return nil, RawOutput{Result: tc.GetEvents()}, nil
 	})
 
 	// --- Memory & Heap ---
@@ -1481,7 +1440,7 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		return nil, RawOutput{Result: json.RawMessage(result)}, nil
+		return nil, RawOutput{Result: result}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -1629,11 +1588,7 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		val, err := json.Marshal(obj)
-		if err != nil {
-			return nil, RawOutput{}, fmt.Errorf("marshaling animation object: %w", err)
-		}
-		return nil, RawOutput{Result: val}, nil
+		return nil, RawOutput{Result: obj}, nil
 	})
 
 	// --- Canvas ---
