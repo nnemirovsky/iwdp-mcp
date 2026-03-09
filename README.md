@@ -87,6 +87,30 @@ Add to your Claude Code config (`.mcp.json`):
 }
 ```
 
+### Claude Code Prompts
+
+Once the MCP server is configured, you can ask Claude Code things like:
+
+```
+Connect to my iPhone's Safari and show me the page title
+
+List all Safari tabs on my device
+
+Take a screenshot of the current page
+
+Show me all cookies including httpOnly ones
+
+Run document.querySelectorAll('a') and list all links
+
+Monitor network requests while I interact with the page
+
+Check what's in localStorage for this site
+
+Find the CSS styles applied to the header element
+
+Set a breakpoint in main.js and step through it
+```
+
 ## How It Works
 
 ```
