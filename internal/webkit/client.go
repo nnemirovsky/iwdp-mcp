@@ -40,6 +40,11 @@ type Client struct {
 	Dialer *websocket.Dialer
 }
 
+// TargetWaitTimeout controls how long NewClient waits for a Target.targetCreated
+// event before falling back to direct (non-Target) mode. Default is 100ms which
+// is enough for local iwdp connections. Increase for slower environments (CI).
+var TargetWaitTimeout = 100 * time.Millisecond
+
 // NewClient creates a new WebKit Inspector Protocol client connected to the given WebSocket URL.
 // If the endpoint uses Target-based routing (ios-webkit-debug-proxy), the client
 // automatically wraps/unwraps messages via Target.sendMessageToTarget.
@@ -66,7 +71,7 @@ func NewClientWithDialer(ctx context.Context, wsURL string, dialer *websocket.Di
 	select {
 	case <-c.targetReady:
 		// Target routing enabled
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(TargetWaitTimeout):
 		// No Target event — use direct mode (e.g., mock servers in tests)
 	case <-ctx.Done():
 		_ = c.Close()

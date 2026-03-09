@@ -21,14 +21,16 @@ if [ ! -f "$BINARY" ]; then
     aarch64) ARCH="arm64" ;;
   esac
 
-  ASSET="${BINARY_NAME}_${OS}_${ARCH}"
-  URL="https://github.com/${REPO}/releases/latest/download/${ASSET}"
+  # Resolve latest version tag (e.g. "v0.1.0" → "0.1.0")
+  VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | sed -E 's/.*"v?([^"]+)".*/\1/')"
+  ASSET="${BINARY_NAME}_${VERSION}_${OS}_${ARCH}"
+  URL="https://github.com/${REPO}/releases/download/v${VERSION}/${ASSET}"
 
-  echo "Downloading ${BINARY_NAME} from ${URL}..." >&2
+  echo "Downloading ${BINARY_NAME} v${VERSION} from ${URL}..." >&2
   mkdir -p "$INSTALL_DIR"
   curl -fsSL "$URL" -o "$BINARY"
   chmod +x "$BINARY"
-  echo "Installed ${BINARY_NAME} to ${BINARY}" >&2
+  echo "Installed ${BINARY_NAME} v${VERSION} to ${BINARY}" >&2
 fi
 
 exec "$BINARY" "$@"

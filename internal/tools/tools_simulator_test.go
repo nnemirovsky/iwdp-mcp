@@ -30,6 +30,8 @@ func getSimClient(t *testing.T) *webkit.Client {
 	}
 
 	simOnce.Do(func() {
+		// CI runners are slower — give iwdp more time to send Target.targetCreated.
+		webkit.TargetWaitTimeout = 2 * time.Second
 		simClient, simErr = webkit.NewClient(context.Background(), wsURL)
 	})
 	if simErr != nil {
