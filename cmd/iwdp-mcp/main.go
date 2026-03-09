@@ -41,7 +41,7 @@ func getClient(ctx context.Context) (*webkit.Client, error) {
 func main() {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "iwdp-mcp",
-		Version: "0.3.0",
+		Version: "0.3.1",
 	}, nil)
 
 	registerTools(server)
