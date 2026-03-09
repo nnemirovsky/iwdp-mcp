@@ -20,12 +20,12 @@ import (
 
 // session holds the active WebKit client and collectors.
 type session struct {
-	mu                     sync.Mutex
-	client                 *webkit.Client
-	networkMonitor         *tools.NetworkMonitor
-	consoleCollector       *tools.ConsoleCollector
-	timelineCollector      *tools.TimelineCollector
-	interceptionCollector  *tools.InterceptionCollector
+	mu                    sync.Mutex
+	client                *webkit.Client
+	networkMonitor        *tools.NetworkMonitor
+	consoleCollector      *tools.ConsoleCollector
+	timelineCollector     *tools.TimelineCollector
+	interceptionCollector *tools.InterceptionCollector
 }
 
 var sess session

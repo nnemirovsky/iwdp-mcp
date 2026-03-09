@@ -163,15 +163,15 @@ func SetExtraHeaders(ctx context.Context, client *webkit.Client, headers map[str
 
 // InterceptedRequest holds an intercepted request waiting for a continue/response decision.
 type InterceptedRequest struct {
-	RequestID string               `json:"request_id"`
+	RequestID string                `json:"request_id"`
 	Request   webkit.NetworkRequest `json:"request"`
 }
 
 // InterceptionCollector collects Network.requestIntercepted events.
 type InterceptionCollector struct {
-	mu       sync.Mutex
-	pending  map[string]*InterceptedRequest
-	started  bool
+	mu      sync.Mutex
+	pending map[string]*InterceptedRequest
+	started bool
 }
 
 // NewInterceptionCollector creates a new InterceptionCollector.
@@ -203,7 +203,7 @@ func (ic *InterceptionCollector) Start(ctx context.Context, client *webkit.Clien
 
 	client.OnEvent("Network.requestIntercepted", func(method string, params json.RawMessage) {
 		var evt struct {
-			RequestID string               `json:"requestId"`
+			RequestID string                `json:"requestId"`
 			Request   webkit.NetworkRequest `json:"request"`
 		}
 		if err := json.Unmarshal(params, &evt); err != nil {
