@@ -1715,7 +1715,7 @@ func registerTools(server *mcp.Server) {
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name: "heap_start_tracking", Description: "Start tracking heap allocations — collects heap snapshot events",
+		Name: "heap_start_tracking", Description: "Start tracking heap allocations — collects GC events. Waits up to 5s to confirm event pipeline health.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ EmptyInput) (*mcp.CallToolResult, any, error) {
 		c, err := getClient(ctx)
 		if err != nil {
@@ -1727,7 +1727,19 @@ func registerTools(server *mcp.Server) {
 		}
 		collector := sess.heapTrackingCollector
 		sess.mu.Unlock()
-		return nil, ok(), collector.Start(ctx, c)
+		if err := collector.Start(ctx, c); err != nil {
+			return nil, OKOutput{}, err
+		}
+		if collector.PipelineHealthy() {
+			return nil, struct {
+				OK      bool   `json:"ok"`
+				Message string `json:"message"`
+			}{true, "Heap tracking started. Event pipeline confirmed healthy — GC events will be captured."}, nil
+		}
+		return nil, struct {
+			OK      bool   `json:"ok"`
+			Warning string `json:"warning"`
+		}{true, "Heap tracking started, but trackingStart event not received (iwdp may not support the 50-200MB snapshot relay). GC events may not be captured. Use heap_snapshot and heap_gc directly instead."}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{

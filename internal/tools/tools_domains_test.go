@@ -575,18 +575,33 @@ func TestHeapSnapshot(t *testing.T) {
 
 func TestHeapTrackingCollector(t *testing.T) {
 	mock, client := setup(t)
+	mock.HandleFunc("Heap.enable", map[string]interface{}{})
+	mock.HandleFunc("Heap.gc", map[string]interface{}{})
 	mock.HandleFunc("Heap.startTracking", map[string]interface{}{})
 	mock.HandleFunc("Heap.stopTracking", map[string]interface{}{})
 
 	collector := tools.NewHeapTrackingCollector()
 	ctx := context.Background()
+
+	// Send trackingStart shortly after startTracking to confirm pipeline health.
+	// In production, this event carries 50-200MB+ snapshot data; here we use a
+	// small mock payload. Start() waits for this signal before returning.
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		_ = mock.SendEvent("Heap.trackingStart", map[string]interface{}{
+			"timestamp":    1000.0,
+			"snapshotData": "mock-snapshot",
+		})
+	}()
+
 	if err := collector.Start(ctx, client); err != nil {
 		t.Fatalf("HeapTrackingCollector.Start: %v", err)
 	}
+	if !collector.PipelineHealthy() {
+		t.Error("expected pipeline to be healthy after trackingStart event")
+	}
 
-	// Send garbageCollected events (the only events we collect — snapshot
-	// events from trackingStart/trackingComplete are intentionally ignored
-	// because their 50-200MB payloads crash iwdp).
+	// Send garbageCollected events.
 	if err := mock.SendEvent("Heap.garbageCollected", map[string]interface{}{
 		"collection": map[string]interface{}{
 			"type":      "full",
@@ -610,6 +625,9 @@ func TestHeapTrackingCollector(t *testing.T) {
 	result, err := collector.Stop(ctx, client)
 	if err != nil {
 		t.Fatalf("HeapTrackingCollector.Stop: %v", err)
+	}
+	if !result.PipelineHealthy {
+		t.Error("expected PipelineHealthy=true in result")
 	}
 	if len(result.GCEvents) != 2 {
 		t.Fatalf("expected 2 GC events, got %d", len(result.GCEvents))

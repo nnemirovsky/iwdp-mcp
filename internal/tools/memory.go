@@ -186,22 +186,29 @@ type GarbageCollection struct {
 	EndTime   float64 `json:"endTime"`
 }
 
+// HeapTrackingReadyTimeout is how long Start waits for the trackingStart event
+// to confirm the event pipeline is healthy. Default 5s.
+var HeapTrackingReadyTimeout = 5 * time.Second
+
 // HeapTrackingResult holds the collected heap tracking data.
-// Note: Heap.trackingStart/trackingComplete carry 50-200MB+ snapshot payloads
-// that crash iwdp's WebSocket relay, so we intentionally skip them and only
-// collect lightweight garbageCollected events. Use the dedicated heap_snapshot
-// tool for snapshots (it uses Heap.snapshot which returns data in-band).
 type HeapTrackingResult struct {
-	GCEvents []GarbageCollection `json:"gcEvents,omitempty"`
+	GCEvents        []GarbageCollection `json:"gcEvents,omitempty"`
+	PipelineHealthy bool                `json:"pipelineHealthy"`
 }
 
 // HeapTrackingCollector collects Heap GC events during tracking.
-// Snapshot events (trackingStart/trackingComplete) are intentionally ignored
-// because their 50-200MB+ payloads crash iwdp's WebSocket relay.
+//
+// Heap.startTracking triggers a trackingStart event carrying a full heap
+// snapshot (50-200MB+). If iwdp can relay this massive event successfully,
+// the event pipeline is healthy and subsequent garbageCollected events will
+// arrive. If not, the pipeline is broken and no events will be captured.
+// Start() waits for the trackingStart event to diagnose this.
 type HeapTrackingCollector struct {
-	mu       sync.Mutex
-	gcEvents []GarbageCollection
-	started  bool
+	mu              sync.Mutex
+	gcEvents        []GarbageCollection
+	started         bool
+	ready           chan struct{}
+	pipelineHealthy bool
 }
 
 // NewHeapTrackingCollector creates a new HeapTrackingCollector.
@@ -209,7 +216,17 @@ func NewHeapTrackingCollector() *HeapTrackingCollector {
 	return &HeapTrackingCollector{}
 }
 
+// PipelineHealthy reports whether the event pipeline survived the massive
+// trackingStart event. If false, garbageCollected events won't arrive.
+func (c *HeapTrackingCollector) PipelineHealthy() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.pipelineHealthy
+}
+
 // Start begins heap tracking, collecting garbageCollected events.
+// It waits up to HeapTrackingReadyTimeout for the trackingStart event to
+// confirm the event pipeline is healthy.
 func (c *HeapTrackingCollector) Start(ctx context.Context, client *webkit.Client) error {
 	c.mu.Lock()
 	if c.started {
@@ -218,7 +235,26 @@ func (c *HeapTrackingCollector) Start(ctx context.Context, client *webkit.Client
 	}
 	c.started = true
 	c.gcEvents = nil
+	c.ready = make(chan struct{})
+	c.pipelineHealthy = false
 	c.mu.Unlock()
+
+	// trackingStart handler: signals that the massive snapshot event arrived
+	// at our client, confirming the event pipeline is healthy. We discard
+	// the snapshot data (50-200MB+) — use heap_snapshot for snapshots.
+	client.OnEvent("Heap.trackingStart", func(method string, params json.RawMessage) {
+		c.mu.Lock()
+		c.pipelineHealthy = true
+		ch := c.ready
+		c.mu.Unlock()
+		if ch != nil {
+			select {
+			case <-ch:
+			default:
+				close(ch)
+			}
+		}
+	})
 
 	client.OnEvent("Heap.garbageCollected", func(method string, params json.RawMessage) {
 		var evt struct {
@@ -231,8 +267,34 @@ func (c *HeapTrackingCollector) Start(ctx context.Context, client *webkit.Client
 		}
 	})
 
+	// Enable Heap domain — required for events to be dispatched.
+	_, _ = client.Send(ctx, "Heap.enable", nil)
+
+	// Pre-GC: reduce heap size before startTracking to minimize the snapshot
+	// payload in the trackingStart event. A smaller snapshot is more likely
+	// to survive iwdp's WebSocket relay (which has a 64MB message limit).
+	_, _ = client.Send(ctx, "Heap.gc", nil)
+
 	_, err := client.Send(ctx, "Heap.startTracking", nil)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Wait for trackingStart event to confirm the event pipeline survived
+	// the massive snapshot payload. If it arrives, GC events will work.
+	// If not, iwdp couldn't relay the 50-200MB+ event and the pipeline is broken.
+	c.mu.Lock()
+	ch := c.ready
+	c.mu.Unlock()
+	select {
+	case <-ch:
+		// Pipeline healthy — trackingStart event arrived.
+	case <-time.After(HeapTrackingReadyTimeout):
+		// Timeout — event pipeline likely broken by massive snapshot.
+	case <-ctx.Done():
+	}
+
+	return nil
 }
 
 // Stop stops heap tracking and returns collected GC events.
@@ -244,6 +306,7 @@ func (c *HeapTrackingCollector) Stop(ctx context.Context, client *webkit.Client)
 		c.mu.Unlock()
 		return &HeapTrackingResult{}, nil
 	}
+	healthy := c.pipelineHealthy
 	c.mu.Unlock()
 
 	// stopTracking triggers trackingComplete with a massive snapshot payload
@@ -253,7 +316,8 @@ func (c *HeapTrackingCollector) Stop(ctx context.Context, client *webkit.Client)
 	c.mu.Lock()
 	c.started = false
 	result := &HeapTrackingResult{
-		GCEvents: make([]GarbageCollection, len(c.gcEvents)),
+		GCEvents:        make([]GarbageCollection, len(c.gcEvents)),
+		PipelineHealthy: healthy,
 	}
 	copy(result.GCEvents, c.gcEvents)
 	c.gcEvents = nil
