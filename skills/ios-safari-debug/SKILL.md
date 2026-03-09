@@ -9,22 +9,9 @@ Use this skill to inspect and debug Safari tabs on a connected iOS device throug
 
 ## Prerequisites
 
-1. **Check if iwdp is running** (check the listing port 9221, NOT a device port):
-   ```bash
-   curl -s http://localhost:9221/json
-   ```
-   A JSON array of connected devices means it is running.
+1. **Check iwdp status** — call `iwdp_status` first. It checks if ios-webkit-debug-proxy is running and auto-starts it if needed (no manual shell commands required).
 
-2. **If not running, start it:**
-   ```bash
-   ios_webkit_debug_proxy --no-frontend &
-   ```
-   Wait 1 second, then verify:
-   ```bash
-   sleep 1 && curl -s http://localhost:9221/json
-   ```
-
-3. **An iOS device must be connected** via USB with Safari open and Web Inspector enabled (Settings > Safari > Advanced > Web Inspector).
+2. **An iOS device must be connected** via USB with Safari open and Web Inspector enabled (Settings > Safari > Advanced > Web Inspector).
 
 ## Port Layout
 
@@ -36,16 +23,18 @@ Each device entry from port 9221 includes a URL field (e.g., `localhost:9222`) i
 
 ## Workflow
 
-1. **List devices** — use `list_devices` to see connected iOS devices and their port assignments.
+1. **Ensure iwdp is running** — call `iwdp_status` to verify (it auto-starts if needed).
 
-2. **List pages** — use `list_pages` (optionally with `port` for a specific device) to discover open Safari tabs. Each entry includes a title, URL, and `webSocketDebuggerUrl`.
+2. **List devices** — use `list_devices` to see connected iOS devices and their port assignments.
 
-3. **Select a page** — use `select_page` with the WebSocket URL from the listing to connect to the target tab.
+3. **List pages** — use `list_pages` (optionally with `port` for a specific device) to discover open Safari tabs. Each entry includes a title, URL, and `webSocketDebuggerUrl`.
 
-4. **Use debugging tools** for the task at hand. Available tools include:
+4. **Select a page** — use `select_page` with the WebSocket URL from the listing to connect to the target tab.
+
+5. **Use debugging tools** for the task at hand. Available tools include:
    - `navigate` — go to a URL
    - `evaluate_script` — run JavaScript in the page
-   - `take_screenshot` — capture the page as a base64 PNG
+   - `take_screenshot` — capture the page as a PNG file (returns path — use Read to view)
    - `get_document` / `query_selector` / `get_outer_html` — inspect the DOM
    - `click` / `fill` / `type_text` — interact with page elements
    - `get_cookies` / `set_cookie` / `delete_cookie` — manage cookies (incl. httpOnly)
@@ -102,3 +91,5 @@ View all cookies including httpOnly ones that JavaScript cannot access:
 - `get_cookies` returns httpOnly and secure cookies that `document.cookie` cannot access.
 - Network/console monitoring only captures events while active — enable before triggering traffic.
 - `evaluate_script` runs arbitrary JS in the page context — use it for anything the specialized tools don't cover.
+- Screenshots are saved as PNG files — use the Read tool to view the returned file path.
+- Large results (DOM trees, network logs, JS output) are automatically saved to temp files when they exceed the inline size limit.

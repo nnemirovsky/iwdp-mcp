@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -39,7 +41,7 @@ func getClient(ctx context.Context) (*webkit.Client, error) {
 func main() {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "iwdp-mcp",
-		Version: "0.2.3",
+		Version: "0.2.4",
 	}, nil)
 
 	registerTools(server)
@@ -54,6 +56,10 @@ func main() {
 type EmptyInput struct{}
 
 type (
+	IWDPStatusInput struct {
+		AutoStart *bool `json:"auto_start,omitempty" jsonschema:"if true, automatically start iwdp when not running (default: true)"`
+	}
+
 	ListDevicesInput  struct{}
 	ListDevicesOutput struct {
 		Devices []webkit.DeviceEntry `json:"devices"`
@@ -82,7 +88,7 @@ type NavigateInput struct {
 type (
 	TakeScreenshotInput  struct{}
 	TakeScreenshotOutput struct {
-		DataURL string `json:"data_url"`
+		FilePath string `json:"file_path"`
 	}
 )
 
@@ -391,32 +397,92 @@ type NodeIDOutput struct {
 
 func ok() OKOutput { return OKOutput{OK: true} }
 
-// imageResultFromDataURL converts a data URL (data:image/png;base64,...) to an
-// MCP ImageContent result so the image is delivered natively instead of as a
-// multi-megabyte text string.
-func imageResultFromDataURL(dataURL string) (*mcp.CallToolResult, error) {
-	// Expected format: data:image/png;base64,<data>
+// saveScreenshot saves a data URL (data:image/png;base64,...) to a temp PNG
+// file. iOS retina screenshots are too large for inline MCP results — saving
+// to disk lets Claude Code read the image directly with its Read tool.
+func saveScreenshot(dataURL string) (filePath string, result *mcp.CallToolResult, err error) {
 	const prefix = "data:image/png;base64,"
 	if !strings.HasPrefix(dataURL, prefix) {
-		// Fallback: return as text
-		return &mcp.CallToolResult{
+		return "", &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: dataURL}},
 		}, nil
 	}
 	b64Data := dataURL[len(prefix):]
 	rawBytes, err := base64.StdEncoding.DecodeString(b64Data)
 	if err != nil {
-		return nil, fmt.Errorf("decoding screenshot base64: %w", err)
+		return "", nil, fmt.Errorf("decoding screenshot base64: %w", err)
+	}
+	tmpDir := filepath.Join(os.TempDir(), "iwdp-mcp")
+	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
+		return "", nil, fmt.Errorf("creating temp dir: %w", err)
+	}
+	f, err := os.CreateTemp(tmpDir, "screenshot-*.png")
+	if err != nil {
+		return "", nil, fmt.Errorf("creating temp file: %w", err)
+	}
+	defer f.Close()
+	if _, err := f.Write(rawBytes); err != nil {
+		return "", nil, fmt.Errorf("writing screenshot: %w", err)
+	}
+	return f.Name(), &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{
+			Text: fmt.Sprintf("Screenshot saved to %s — use the Read tool to view it.", f.Name()),
+		}},
+	}, nil
+}
+
+// maxInlineResultSize is the maximum number of characters for a tool result
+// before it gets saved to a temp file instead. Claude Code truncates results
+// above ~60K characters, so we save anything larger to disk.
+const maxInlineResultSize = 50_000
+
+// largeResultToFile checks if the JSON representation of result exceeds
+// maxInlineResultSize. If so, it saves the JSON to a temp file and returns a
+// *mcp.CallToolResult pointing to the file. Otherwise returns nil (use inline).
+func largeResultToFile(result any, prefix string) (*mcp.CallToolResult, error) {
+	data, err := json.MarshalIndent(result, "", "  ")
+	if err != nil || len(data) <= maxInlineResultSize {
+		return nil, err
+	}
+	tmpDir := filepath.Join(os.TempDir(), "iwdp-mcp")
+	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
+		return nil, fmt.Errorf("creating temp dir: %w", err)
+	}
+	f, err := os.CreateTemp(tmpDir, prefix+"-*.json")
+	if err != nil {
+		return nil, fmt.Errorf("creating temp file: %w", err)
+	}
+	defer f.Close()
+	if _, err := f.Write(data); err != nil {
+		return nil, fmt.Errorf("writing result: %w", err)
 	}
 	return &mcp.CallToolResult{
-		Content: []mcp.Content{&mcp.ImageContent{
-			Data:     rawBytes,
-			MIMEType: "image/png",
+		Content: []mcp.Content{&mcp.TextContent{
+			Text: fmt.Sprintf("Result too large for inline display (%d bytes). Saved to %s — use the Read tool to view it.", len(data), f.Name()),
 		}},
 	}, nil
 }
 
 func registerTools(server *mcp.Server) {
+	// --- iwdp status ---
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "iwdp_status", Description: "Check if ios-webkit-debug-proxy is running and optionally start it. Call this first before any other tool to ensure iwdp is available.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input IWDPStatusInput) (*mcp.CallToolResult, any, error) {
+		running := proxy.IsRunning()
+		if running {
+			return nil, map[string]any{"running": true, "message": "ios-webkit-debug-proxy is running on port 9221"}, nil
+		}
+		// Default auto_start to true when not explicitly set
+		autoStart := input.AutoStart == nil || *input.AutoStart
+		if !autoStart {
+			return nil, map[string]any{"running": false, "message": "ios-webkit-debug-proxy is not running. Start it with: ios_webkit_debug_proxy --no-frontend"}, nil
+		}
+		if err := proxy.Start(ctx); err != nil {
+			return nil, map[string]any{"running": false, "message": fmt.Sprintf("failed to start iwdp: %v", err)}, nil
+		}
+		return nil, map[string]any{"running": true, "started": true, "message": "ios-webkit-debug-proxy was not running — started it automatically"}, nil
+	})
+
 	// --- Device/Page management ---
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "list_devices", Description: "List connected iOS devices (from iwdp listing port 9221). Each device's URL shows which port to use for list_pages.",
@@ -515,7 +581,7 @@ func registerTools(server *mcp.Server) {
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name: "take_screenshot", Description: "Capture page screenshot as base64 PNG",
+		Name: "take_screenshot", Description: "Capture page screenshot as PNG file. Returns the file path — use the Read tool to view it.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ TakeScreenshotInput) (*mcp.CallToolResult, any, error) {
 		c, err := getClient(ctx)
 		if err != nil {
@@ -525,15 +591,15 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, TakeScreenshotOutput{}, err
 		}
-		result, err := imageResultFromDataURL(dataURL)
+		path, result, err := saveScreenshot(dataURL)
 		if err != nil {
 			return nil, TakeScreenshotOutput{}, err
 		}
-		return result, TakeScreenshotOutput{DataURL: dataURL}, nil
+		return result, TakeScreenshotOutput{FilePath: path}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name: "snapshot_node", Description: "Capture a specific DOM node as PNG",
+		Name: "snapshot_node", Description: "Capture a specific DOM node as PNG file. Returns the file path — use the Read tool to view it.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input SnapshotNodeInput) (*mcp.CallToolResult, any, error) {
 		c, err := getClient(ctx)
 		if err != nil {
@@ -543,11 +609,11 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, TakeScreenshotOutput{}, err
 		}
-		result, err := imageResultFromDataURL(dataURL)
+		path, result, err := saveScreenshot(dataURL)
 		if err != nil {
 			return nil, TakeScreenshotOutput{}, err
 		}
-		return result, TakeScreenshotOutput{DataURL: dataURL}, nil
+		return result, TakeScreenshotOutput{FilePath: path}, nil
 	})
 
 	// --- Runtime ---
@@ -562,7 +628,11 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, EvaluateScriptOutput{}, err
 		}
-		return nil, EvaluateScriptOutput{Result: result.Result, Type: result.Result.Type}, nil
+		out := EvaluateScriptOutput{Result: result.Result, Type: result.Result.Type}
+		if fileResult, err := largeResultToFile(out, "eval"); err == nil && fileResult != nil {
+			return fileResult, out, nil
+		}
+		return nil, out, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -576,7 +646,11 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		return nil, RawOutput{Result: result.Result}, nil
+		out := RawOutput{Result: result.Result}
+		if fileResult, err := largeResultToFile(out, "call-fn"); err == nil && fileResult != nil {
+			return fileResult, out, nil
+		}
+		return nil, out, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -590,7 +664,11 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		return nil, RawOutput{Result: props}, nil
+		out := RawOutput{Result: props}
+		if fileResult, err := largeResultToFile(out, "props"); err == nil && fileResult != nil {
+			return fileResult, out, nil
+		}
+		return nil, out, nil
 	})
 
 	// --- DOM ---
@@ -605,7 +683,11 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, RawOutput{}, err
 		}
-		return nil, RawOutput{Result: doc}, nil
+		out := RawOutput{Result: doc}
+		if fileResult, err := largeResultToFile(out, "dom"); err == nil && fileResult != nil {
+			return fileResult, out, nil
+		}
+		return nil, out, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -647,7 +729,11 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, GetOuterHTMLOutput{}, err
 		}
-		return nil, GetOuterHTMLOutput{OuterHTML: html}, nil
+		out := GetOuterHTMLOutput{OuterHTML: html}
+		if fileResult, err := largeResultToFile(out, "html"); err == nil && fileResult != nil {
+			return fileResult, out, nil
+		}
+		return nil, out, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -835,7 +921,11 @@ func registerTools(server *mcp.Server) {
 		if nm == nil {
 			return nil, RawOutput{Result: []any{}}, nil
 		}
-		return nil, RawOutput{Result: nm.GetRequests()}, nil
+		out := RawOutput{Result: nm.GetRequests()}
+		if fileResult, err := largeResultToFile(out, "network"); err == nil && fileResult != nil {
+			return fileResult, out, nil
+		}
+		return nil, out, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -849,7 +939,11 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, GetResponseBodyOutput{}, err
 		}
-		return nil, GetResponseBodyOutput{Body: body, Base64Encoded: b64}, nil
+		out := GetResponseBodyOutput{Body: body, Base64Encoded: b64}
+		if fileResult, err := largeResultToFile(out, "response"); err == nil && fileResult != nil {
+			return fileResult, out, nil
+		}
+		return nil, out, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -1128,7 +1222,11 @@ func registerTools(server *mcp.Server) {
 		if cc == nil {
 			return nil, RawOutput{Result: []any{}}, nil
 		}
-		return nil, RawOutput{Result: cc.GetMessages()}, nil
+		out := RawOutput{Result: cc.GetMessages()}
+		if fileResult, err := largeResultToFile(out, "console"); err == nil && fileResult != nil {
+			return fileResult, out, nil
+		}
+		return nil, out, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -1405,7 +1503,11 @@ func registerTools(server *mcp.Server) {
 		if tc == nil {
 			return nil, RawOutput{Result: []any{}}, nil
 		}
-		return nil, RawOutput{Result: tc.GetEvents()}, nil
+		out := RawOutput{Result: tc.GetEvents()}
+		if fileResult, err := largeResultToFile(out, "timeline"); err == nil && fileResult != nil {
+			return fileResult, out, nil
+		}
+		return nil, out, nil
 	})
 
 	// --- Memory & Heap ---
