@@ -161,7 +161,97 @@ func SetExtraHeaders(ctx context.Context, client *webkit.Client, headers map[str
 	return err
 }
 
-// SetRequestInterception enables or disables request interception.
+// InterceptedRequest holds an intercepted request waiting for a continue/response decision.
+type InterceptedRequest struct {
+	RequestID string               `json:"request_id"`
+	Request   webkit.NetworkRequest `json:"request"`
+}
+
+// InterceptionCollector collects Network.requestIntercepted events.
+type InterceptionCollector struct {
+	mu       sync.Mutex
+	pending  map[string]*InterceptedRequest
+	started  bool
+}
+
+// NewInterceptionCollector creates a new InterceptionCollector.
+func NewInterceptionCollector() *InterceptionCollector {
+	return &InterceptionCollector{
+		pending: make(map[string]*InterceptedRequest),
+	}
+}
+
+// Start enables request interception and registers the event handler.
+func (ic *InterceptionCollector) Start(ctx context.Context, client *webkit.Client) error {
+	ic.mu.Lock()
+	if ic.started {
+		ic.mu.Unlock()
+		return nil
+	}
+	ic.started = true
+	ic.mu.Unlock()
+
+	_, err := client.Send(ctx, "Network.setInterceptionEnabled", map[string]interface{}{
+		"enabled": true,
+	})
+	if err != nil {
+		ic.mu.Lock()
+		ic.started = false
+		ic.mu.Unlock()
+		return err
+	}
+
+	client.OnEvent("Network.requestIntercepted", func(method string, params json.RawMessage) {
+		var evt struct {
+			RequestID string               `json:"requestId"`
+			Request   webkit.NetworkRequest `json:"request"`
+		}
+		if err := json.Unmarshal(params, &evt); err != nil {
+			return
+		}
+		ic.mu.Lock()
+		ic.pending[evt.RequestID] = &InterceptedRequest{
+			RequestID: evt.RequestID,
+			Request:   evt.Request,
+		}
+		ic.mu.Unlock()
+	})
+
+	return nil
+}
+
+// Stop disables request interception.
+func (ic *InterceptionCollector) Stop(ctx context.Context, client *webkit.Client) error {
+	ic.mu.Lock()
+	ic.started = false
+	ic.pending = make(map[string]*InterceptedRequest)
+	ic.mu.Unlock()
+	_, err := client.Send(ctx, "Network.setInterceptionEnabled", map[string]interface{}{
+		"enabled": false,
+	})
+	return err
+}
+
+// GetPending returns all pending intercepted requests.
+func (ic *InterceptionCollector) GetPending() []InterceptedRequest {
+	ic.mu.Lock()
+	defer ic.mu.Unlock()
+	result := make([]InterceptedRequest, 0, len(ic.pending))
+	for _, req := range ic.pending {
+		result = append(result, *req)
+	}
+	return result
+}
+
+// RemovePending removes a request from the pending list (after continue/response).
+func (ic *InterceptionCollector) RemovePending(requestID string) {
+	ic.mu.Lock()
+	delete(ic.pending, requestID)
+	ic.mu.Unlock()
+}
+
+// SetRequestInterception enables or disables request interception directly.
+// Prefer using InterceptionCollector for the full interception workflow.
 func SetRequestInterception(ctx context.Context, client *webkit.Client, enabled bool) error {
 	_, err := client.Send(ctx, "Network.setInterceptionEnabled", map[string]interface{}{
 		"enabled": enabled,

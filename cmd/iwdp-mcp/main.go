@@ -20,11 +20,12 @@ import (
 
 // session holds the active WebKit client and collectors.
 type session struct {
-	mu                sync.Mutex
-	client            *webkit.Client
-	networkMonitor    *tools.NetworkMonitor
-	consoleCollector  *tools.ConsoleCollector
-	timelineCollector *tools.TimelineCollector
+	mu                     sync.Mutex
+	client                 *webkit.Client
+	networkMonitor         *tools.NetworkMonitor
+	consoleCollector       *tools.ConsoleCollector
+	timelineCollector      *tools.TimelineCollector
+	interceptionCollector  *tools.InterceptionCollector
 }
 
 var sess session
@@ -41,7 +42,7 @@ func getClient(ctx context.Context) (*webkit.Client, error) {
 func main() {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "iwdp-mcp",
-		Version: "0.3.1",
+		Version: "0.3.2",
 	}, nil)
 
 	registerTools(server)
@@ -557,6 +558,7 @@ func registerTools(server *mcp.Server) {
 		sess.networkMonitor = nil
 		sess.consoleCollector = nil
 		sess.timelineCollector = nil
+		sess.interceptionCollector = nil
 		sess.mu.Unlock()
 
 		if oldClient != nil {
@@ -973,33 +975,76 @@ func registerTools(server *mcp.Server) {
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name: "set_request_interception", Description: "Enable or disable request interception",
+		Name: "set_request_interception", Description: "Enable or disable request interception. When enabled, intercepted requests appear in list_intercepted_requests and must be continued or responded to.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input SetRequestInterceptionInput) (*mcp.CallToolResult, any, error) {
 		c, err := getClient(ctx)
 		if err != nil {
 			return nil, OKOutput{}, err
 		}
-		return nil, ok(), tools.SetRequestInterception(ctx, c, input.Enabled)
+		if input.Enabled {
+			sess.mu.Lock()
+			if sess.interceptionCollector == nil {
+				sess.interceptionCollector = tools.NewInterceptionCollector()
+			}
+			ic := sess.interceptionCollector
+			sess.mu.Unlock()
+			return nil, ok(), ic.Start(ctx, c)
+		}
+		sess.mu.Lock()
+		ic := sess.interceptionCollector
+		sess.mu.Unlock()
+		if ic != nil {
+			return nil, ok(), ic.Stop(ctx, c)
+		}
+		return nil, ok(), nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name: "intercept_continue", Description: "Continue an intercepted request",
+		Name: "list_intercepted_requests", Description: "List pending intercepted requests. Each has a request_id to use with intercept_continue or intercept_with_response.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, _ EmptyInput) (*mcp.CallToolResult, any, error) {
+		sess.mu.Lock()
+		ic := sess.interceptionCollector
+		sess.mu.Unlock()
+		if ic == nil {
+			return nil, RawOutput{Result: []any{}}, nil
+		}
+		return nil, RawOutput{Result: ic.GetPending()}, nil
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "intercept_continue", Description: "Continue an intercepted request without modification",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input InterceptContinueInput) (*mcp.CallToolResult, any, error) {
 		c, err := getClient(ctx)
 		if err != nil {
 			return nil, OKOutput{}, err
 		}
-		return nil, ok(), tools.InterceptContinue(ctx, c, input.RequestID)
+		err = tools.InterceptContinue(ctx, c, input.RequestID)
+		if err == nil {
+			sess.mu.Lock()
+			if sess.interceptionCollector != nil {
+				sess.interceptionCollector.RemovePending(input.RequestID)
+			}
+			sess.mu.Unlock()
+		}
+		return nil, ok(), err
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name: "intercept_with_response", Description: "Respond to an intercepted request with custom response",
+		Name: "intercept_with_response", Description: "Respond to an intercepted request with a custom response",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input InterceptWithResponseInput) (*mcp.CallToolResult, any, error) {
 		c, err := getClient(ctx)
 		if err != nil {
 			return nil, OKOutput{}, err
 		}
-		return nil, ok(), tools.InterceptWithResponse(ctx, c, input.RequestID, input.StatusCode, input.Headers, input.Body)
+		err = tools.InterceptWithResponse(ctx, c, input.RequestID, input.StatusCode, input.Headers, input.Body)
+		if err == nil {
+			sess.mu.Lock()
+			if sess.interceptionCollector != nil {
+				sess.interceptionCollector.RemovePending(input.RequestID)
+			}
+			sess.mu.Unlock()
+		}
+		return nil, ok(), err
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
