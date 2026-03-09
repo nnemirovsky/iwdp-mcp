@@ -4,10 +4,42 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/nnemirovsky/iwdp-mcp/internal/webkit"
 )
+
+// httpStatusText returns the standard status text for an HTTP status code.
+func httpStatusText(code int) string {
+	text := http.StatusText(code)
+	if text == "" {
+		return "Unknown"
+	}
+	return text
+}
+
+// mimeTypeFromHeaders extracts the MIME type from a Content-Type header, defaulting to text/plain.
+func mimeTypeFromHeaders(headers map[string]string) string {
+	for k, v := range headers {
+		if strings.EqualFold(k, "content-type") {
+			// Strip charset etc: "text/html; charset=utf-8" → "text/html"
+			if idx := strings.IndexByte(v, ';'); idx >= 0 {
+				return strings.TrimSpace(v[:idx])
+			}
+			return v
+		}
+	}
+	return "text/plain"
+}
+
+// isAlreadyEnabledErr checks if the error is "Interception already enabled/disabled",
+// which happens when a previous session left state on WebKit's side.
+func isAlreadyEnabledErr(err error) bool {
+	return err != nil && (strings.Contains(err.Error(), "already enabled") ||
+		strings.Contains(err.Error(), "already disabled"))
+}
 
 // NetworkMonitor collects network requests and responses.
 type NetworkMonitor struct {
@@ -164,6 +196,7 @@ func SetExtraHeaders(ctx context.Context, client *webkit.Client, headers map[str
 // InterceptedRequest holds an intercepted request waiting for a continue/response decision.
 type InterceptedRequest struct {
 	RequestID string                `json:"request_id"`
+	Stage     string                `json:"stage"`
 	Request   webkit.NetworkRequest `json:"request"`
 }
 
@@ -181,8 +214,11 @@ func NewInterceptionCollector() *InterceptionCollector {
 	}
 }
 
-// Start enables request interception and registers the event handler.
-func (ic *InterceptionCollector) Start(ctx context.Context, client *webkit.Client) error {
+// Start enables request interception, adds an interception rule, and registers the event handler.
+// urlPattern is a URL pattern to intercept (empty string = all requests).
+// stage is "request" or "response" (empty defaults to "request").
+// isRegex controls whether urlPattern is treated as a regex.
+func (ic *InterceptionCollector) Start(ctx context.Context, client *webkit.Client, urlPattern, stage string, isRegex bool) error {
 	ic.mu.Lock()
 	if ic.started {
 		ic.mu.Unlock()
@@ -191,14 +227,42 @@ func (ic *InterceptionCollector) Start(ctx context.Context, client *webkit.Clien
 	ic.started = true
 	ic.mu.Unlock()
 
+	// Network domain must be enabled for interception events to be dispatched.
+	_, _ = client.Send(ctx, "Network.enable", nil)
+
 	_, err := client.Send(ctx, "Network.setInterceptionEnabled", map[string]interface{}{
 		"enabled": true,
 	})
 	if err != nil {
+		// "Interception already enabled" is non-fatal — a previous session may have
+		// left it on. We still need to add rules and register the event handler.
+		if !isAlreadyEnabledErr(err) {
+			ic.mu.Lock()
+			ic.started = false
+			ic.mu.Unlock()
+			return err
+		}
+	}
+
+	if stage == "" {
+		stage = "request"
+	}
+
+	// Register an interception rule — without this, no requestIntercepted events fire.
+	_, err = client.Send(ctx, "Network.addInterception", map[string]interface{}{
+		"url":     urlPattern,
+		"stage":   stage,
+		"isRegex": isRegex,
+	})
+	if err != nil {
+		// Roll back — disable interception if we can't add a rule.
+		_, _ = client.Send(ctx, "Network.setInterceptionEnabled", map[string]interface{}{
+			"enabled": false,
+		})
 		ic.mu.Lock()
 		ic.started = false
 		ic.mu.Unlock()
-		return err
+		return fmt.Errorf("adding interception rule: %w", err)
 	}
 
 	client.OnEvent("Network.requestIntercepted", func(method string, params json.RawMessage) {
@@ -212,6 +276,24 @@ func (ic *InterceptionCollector) Start(ctx context.Context, client *webkit.Clien
 		ic.mu.Lock()
 		ic.pending[evt.RequestID] = &InterceptedRequest{
 			RequestID: evt.RequestID,
+			Stage:     "request",
+			Request:   evt.Request,
+		}
+		ic.mu.Unlock()
+	})
+
+	client.OnEvent("Network.responseIntercepted", func(method string, params json.RawMessage) {
+		var evt struct {
+			RequestID string                `json:"requestId"`
+			Request   webkit.NetworkRequest `json:"request"`
+		}
+		if err := json.Unmarshal(params, &evt); err != nil {
+			return
+		}
+		ic.mu.Lock()
+		ic.pending[evt.RequestID] = &InterceptedRequest{
+			RequestID: evt.RequestID,
+			Stage:     "response",
 			Request:   evt.Request,
 		}
 		ic.mu.Unlock()
@@ -220,12 +302,17 @@ func (ic *InterceptionCollector) Start(ctx context.Context, client *webkit.Clien
 	return nil
 }
 
-// Stop disables request interception.
+// Stop disables request interception and removes all interception rules.
 func (ic *InterceptionCollector) Stop(ctx context.Context, client *webkit.Client) error {
 	ic.mu.Lock()
 	ic.started = false
 	ic.pending = make(map[string]*InterceptedRequest)
 	ic.mu.Unlock()
+	// removeInterception is best-effort — the disable call below will clear everything anyway.
+	_, _ = client.Send(ctx, "Network.removeInterception", map[string]interface{}{
+		"url":   "",
+		"stage": "request",
+	})
 	_, err := client.Send(ctx, "Network.setInterceptionEnabled", map[string]interface{}{
 		"enabled": false,
 	})
@@ -260,20 +347,50 @@ func SetRequestInterception(ctx context.Context, client *webkit.Client, enabled 
 }
 
 // InterceptContinue continues an intercepted request without modification.
-func InterceptContinue(ctx context.Context, client *webkit.Client, requestID string) error {
+func InterceptContinue(ctx context.Context, client *webkit.Client, requestID, stage string) error {
+	if stage == "" {
+		stage = "request"
+	}
 	_, err := client.Send(ctx, "Network.interceptContinue", map[string]string{
 		"requestId": requestID,
+		"stage":     stage,
 	})
 	return err
 }
 
 // InterceptWithResponse provides a custom response for an intercepted request.
-func InterceptWithResponse(ctx context.Context, client *webkit.Client, requestID string, statusCode int, headers map[string]string, body string) error {
+// For request-stage interceptions, uses Network.interceptRequestWithResponse (synthetic response).
+// For response-stage interceptions, uses Network.interceptWithResponse (modify received response).
+func InterceptWithResponse(ctx context.Context, client *webkit.Client, requestID string, stage string, statusCode int, headers map[string]string, content string, base64Encoded bool) error {
+	if stage == "" {
+		stage = "request"
+	}
+	if headers == nil {
+		headers = map[string]string{}
+	}
+
+	if stage == "request" {
+		// interceptRequestWithResponse: synthetic response at request stage (skip network).
+		_, err := client.Send(ctx, "Network.interceptRequestWithResponse", map[string]interface{}{
+			"requestId":     requestID,
+			"status":        statusCode,
+			"statusText":    httpStatusText(statusCode),
+			"mimeType":      mimeTypeFromHeaders(headers),
+			"content":       content,
+			"base64Encoded": base64Encoded,
+			"headers":       headers,
+		})
+		return err
+	}
+
+	// interceptWithResponse: modify response at response stage.
 	_, err := client.Send(ctx, "Network.interceptWithResponse", map[string]interface{}{
-		"requestId":  requestID,
-		"statusCode": statusCode,
-		"headers":    headers,
-		"body":       body,
+		"requestId":     requestID,
+		"stage":         stage,
+		"statusCode":    statusCode,
+		"headers":       headers,
+		"content":       content,
+		"base64Encoded": base64Encoded,
 	})
 	return err
 }

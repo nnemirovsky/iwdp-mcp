@@ -1076,7 +1076,7 @@ func TestInterceptContinue(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	if err := tools.InterceptContinue(ctx, client, "req-42"); err != nil {
+	if err := tools.InterceptContinue(ctx, client, "req-42", "request"); err != nil {
 		t.Fatalf("InterceptContinue returned error: %v", err)
 	}
 	if receivedRequestID != "req-42" {
@@ -1089,25 +1089,28 @@ func TestInterceptWithResponse(t *testing.T) {
 
 	var receivedRequestID string
 	var receivedStatus float64
-	var receivedBody string
-	mock.Handle("Network.interceptWithResponse", func(_ string, params json.RawMessage) (interface{}, error) {
+	var receivedContent string
+	var receivedBase64 bool
+	mock.Handle("Network.interceptRequestWithResponse", func(_ string, params json.RawMessage) (interface{}, error) {
 		var p struct {
-			RequestID  string  `json:"requestId"`
-			StatusCode float64 `json:"statusCode"`
-			Body       string  `json:"body"`
+			RequestID     string  `json:"requestId"`
+			Status        float64 `json:"status"`
+			Content       string  `json:"content"`
+			Base64Encoded bool    `json:"base64Encoded"`
 		}
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, err
 		}
 		receivedRequestID = p.RequestID
-		receivedStatus = p.StatusCode
-		receivedBody = p.Body
+		receivedStatus = p.Status
+		receivedContent = p.Content
+		receivedBase64 = p.Base64Encoded
 		return map[string]interface{}{}, nil
 	})
 
 	ctx := context.Background()
 	headers := map[string]string{"Content-Type": "text/plain"}
-	if err := tools.InterceptWithResponse(ctx, client, "req-1", 200, headers, "OK"); err != nil {
+	if err := tools.InterceptWithResponse(ctx, client, "req-1", "request", 200, headers, "OK", false); err != nil {
 		t.Fatalf("InterceptWithResponse returned error: %v", err)
 	}
 	if receivedRequestID != "req-1" {
@@ -1116,8 +1119,11 @@ func TestInterceptWithResponse(t *testing.T) {
 	if receivedStatus != 200 {
 		t.Errorf("expected statusCode 200, got %v", receivedStatus)
 	}
-	if receivedBody != "OK" {
-		t.Errorf("expected body %q, got %q", "OK", receivedBody)
+	if receivedContent != "OK" {
+		t.Errorf("expected content %q, got %q", "OK", receivedContent)
+	}
+	if receivedBase64 {
+		t.Errorf("expected base64Encoded false, got true")
 	}
 }
 

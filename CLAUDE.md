@@ -122,6 +122,24 @@ fix/concurrent-write
 refactor/proxy-port-parsing
 ```
 
+## Version Bumps
+
+When bumping the version, update all three files:
+
+1. `cmd/iwdp-mcp/main.go` — `Version: "X.Y.Z"` in `mcp.Implementation`
+2. `.claude-plugin/plugin.json` — `"version": "X.Y.Z"`
+3. `.claude-plugin/marketplace.json` — `"version": "X.Y.Z"`
+
+Then commit, push, and create a git tag:
+
+```bash
+git add cmd/iwdp-mcp/main.go .claude-plugin/plugin.json .claude-plugin/marketplace.json
+git commit -m "chore: bump version to X.Y.Z"
+git push
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
+
 ## Key Dependencies
 
 - `github.com/modelcontextprotocol/go-sdk` v1.4.0 — official MCP Go SDK

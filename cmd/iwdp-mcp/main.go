@@ -39,10 +39,26 @@ func getClient(ctx context.Context) (*webkit.Client, error) {
 	return nil, fmt.Errorf("no page selected — use select_page first")
 }
 
+// lookupInterceptStage finds the stage for an intercepted request from the collector.
+func lookupInterceptStage(requestID string) string {
+	sess.mu.Lock()
+	ic := sess.interceptionCollector
+	sess.mu.Unlock()
+	if ic == nil {
+		return "request"
+	}
+	for _, req := range ic.GetPending() {
+		if req.RequestID == requestID {
+			return req.Stage
+		}
+	}
+	return "request"
+}
+
 func main() {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "iwdp-mcp",
-		Version: "0.3.2",
+		Version: "0.3.3",
 	}, nil)
 
 	registerTools(server)
@@ -201,7 +217,10 @@ type SetExtraHeadersInput struct {
 }
 
 type SetRequestInterceptionInput struct {
-	Enabled bool `json:"enabled" jsonschema:"enable or disable request interception"`
+	Enabled    bool   `json:"enabled" jsonschema:"enable or disable request interception"`
+	URLPattern string `json:"url_pattern,omitempty" jsonschema:"URL pattern to intercept (empty = all requests)"`
+	Stage      string `json:"stage,omitempty" jsonschema:"interception stage: request or response (default: request)"`
+	IsRegex    bool   `json:"is_regex,omitempty" jsonschema:"treat url_pattern as regex"`
 }
 
 type InterceptContinueInput struct {
@@ -209,10 +228,11 @@ type InterceptContinueInput struct {
 }
 
 type InterceptWithResponseInput struct {
-	RequestID  string            `json:"request_id" jsonschema:"intercepted request ID"`
-	StatusCode int               `json:"status_code" jsonschema:"HTTP status code"`
-	Headers    map[string]string `json:"headers,omitempty" jsonschema:"response headers"`
-	Body       string            `json:"body,omitempty" jsonschema:"response body"`
+	RequestID     string            `json:"request_id" jsonschema:"intercepted request ID"`
+	StatusCode    int               `json:"status_code" jsonschema:"HTTP status code"`
+	Headers       map[string]string `json:"headers,omitempty" jsonschema:"response headers"`
+	Content       string            `json:"content,omitempty" jsonschema:"response body content"`
+	Base64Encoded bool              `json:"base64_encoded,omitempty" jsonschema:"whether content is base64-encoded"`
 }
 
 type SetEmulatedConditionsInput struct {
@@ -988,7 +1008,7 @@ func registerTools(server *mcp.Server) {
 			}
 			ic := sess.interceptionCollector
 			sess.mu.Unlock()
-			return nil, ok(), ic.Start(ctx, c)
+			return nil, ok(), ic.Start(ctx, c, input.URLPattern, input.Stage, input.IsRegex)
 		}
 		sess.mu.Lock()
 		ic := sess.interceptionCollector
@@ -1018,7 +1038,8 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, OKOutput{}, err
 		}
-		err = tools.InterceptContinue(ctx, c, input.RequestID)
+		stage := lookupInterceptStage(input.RequestID)
+		err = tools.InterceptContinue(ctx, c, input.RequestID, stage)
 		if err == nil {
 			sess.mu.Lock()
 			if sess.interceptionCollector != nil {
@@ -1036,7 +1057,8 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, OKOutput{}, err
 		}
-		err = tools.InterceptWithResponse(ctx, c, input.RequestID, input.StatusCode, input.Headers, input.Body)
+		stage := lookupInterceptStage(input.RequestID)
+		err = tools.InterceptWithResponse(ctx, c, input.RequestID, stage, input.StatusCode, input.Headers, input.Content, input.Base64Encoded)
 		if err == nil {
 			sess.mu.Lock()
 			if sess.interceptionCollector != nil {
@@ -1045,6 +1067,54 @@ func registerTools(server *mcp.Server) {
 			sess.mu.Unlock()
 		}
 		return nil, ok(), err
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "intercept_continue_all", Description: "Continue all pending intercepted requests without modification",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, _ EmptyInput) (*mcp.CallToolResult, any, error) {
+		c, err := getClient(ctx)
+		if err != nil {
+			return nil, OKOutput{}, err
+		}
+		sess.mu.Lock()
+		ic := sess.interceptionCollector
+		sess.mu.Unlock()
+		if ic == nil {
+			return nil, RawOutput{Result: map[string]int{"continued": 0}}, nil
+		}
+		pending := ic.GetPending()
+		continued := 0
+		for _, r := range pending {
+			if err := tools.InterceptContinue(ctx, c, r.RequestID, r.Stage); err == nil {
+				ic.RemovePending(r.RequestID)
+				continued++
+			}
+		}
+		return nil, RawOutput{Result: map[string]int{"continued": continued}}, nil
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "intercept_block_all", Description: "Block all pending intercepted requests with 403 Forbidden",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, _ EmptyInput) (*mcp.CallToolResult, any, error) {
+		c, err := getClient(ctx)
+		if err != nil {
+			return nil, OKOutput{}, err
+		}
+		sess.mu.Lock()
+		ic := sess.interceptionCollector
+		sess.mu.Unlock()
+		if ic == nil {
+			return nil, RawOutput{Result: map[string]int{"blocked": 0}}, nil
+		}
+		pending := ic.GetPending()
+		blocked := 0
+		for _, r := range pending {
+			if err := tools.InterceptWithResponse(ctx, c, r.RequestID, r.Stage, 403, map[string]string{"Content-Type": "text/plain"}, "Blocked", false); err == nil {
+				ic.RemovePending(r.RequestID)
+				blocked++
+			}
+		}
+		return nil, RawOutput{Result: map[string]int{"blocked": blocked}}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
