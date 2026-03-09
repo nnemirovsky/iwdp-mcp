@@ -283,7 +283,7 @@ func (c *Client) handleTargetCreated(params json.RawMessage) {
 	if err := json.Unmarshal(params, &p); err != nil {
 		return
 	}
-	if p.TargetInfo.TargetID != "" {
+	if p.TargetInfo.TargetID != "" && p.TargetInfo.Type == "page" {
 		c.mu.Lock()
 		c.targetID = p.TargetInfo.TargetID
 		c.mu.Unlock()
