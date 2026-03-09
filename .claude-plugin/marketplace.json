@@ -1,0 +1,15 @@
+{
+  "name": "iwdp-mcp",
+  "version": "0.1.0",
+  "description": "iOS Safari debugging via ios-webkit-debug-proxy — MCP server with full WebKit Inspector Protocol support",
+  "owner": {
+    "name": "nnemirovsky"
+  },
+  "plugins": [
+    {
+      "name": "iwdp-mcp",
+      "source": "./",
+      "description": "iOS Safari debugging via ios-webkit-debug-proxy — MCP server with full WebKit Inspector Protocol support"
+    }
+  ]
+}
