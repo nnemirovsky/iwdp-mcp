@@ -1,0 +1,59 @@
+version: 2
+
+builds:
+  - id: iwdp-mcp
+    main: ./cmd/iwdp-mcp
+    binary: iwdp-mcp
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+  - id: iwdp-cli
+    main: ./cmd/iwdp-cli
+    binary: iwdp-cli
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: default
+    builds:
+      - iwdp-mcp
+      - iwdp-cli
+    format_overrides:
+      - goos: darwin
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+
+  - id: raw-iwdp-mcp
+    builds:
+      - iwdp-mcp
+    format: binary
+    name_template: "iwdp-mcp_{{ .Os }}_{{ .Arch }}"
+
+  - id: raw-iwdp-cli
+    builds:
+      - iwdp-cli
+    format: binary
+    name_template: "iwdp-cli_{{ .Os }}_{{ .Arch }}"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+
+release:
+  github:
+    owner: nnemirovsky
+    name: iwdp-mcp

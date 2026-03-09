@@ -1,0 +1,115 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests with coverage
+        run: go test ./... -v -count=1 -coverprofile=coverage.out
+
+      - name: Coverage summary
+        run: |
+          total=$(go tool cover -func=coverage.out | tail -1 | awk '{print $NF}')
+          echo "## Test Coverage" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Total: ${total}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Package | Coverage |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---------|----------|" >> "$GITHUB_STEP_SUMMARY"
+          go tool cover -func=coverage.out | grep -v "total:" | awk -F'\t+' '{print $1, $NF}' | sort -u -t' ' -k1,1 | while read -r pkg cov; do
+            echo "| \`${pkg}\` | ${cov} |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run e2e tests
+        run: go test ./e2e/ -v -count=1 -timeout=120s
+
+  integration:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install ios-webkit-debug-proxy
+        run: brew install ios-webkit-debug-proxy
+
+      - name: Run all tests with integration tag and coverage
+        run: go test -tags=integration ./... -v -count=1 -timeout=120s -coverprofile=coverage-integration.out
+
+      - name: Integration coverage summary
+        run: |
+          total=$(go tool cover -func=coverage-integration.out | tail -1 | awk '{print $NF}')
+          echo "## Integration Test Coverage (includes all tests)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Total: ${total}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Package | Coverage |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---------|----------|" >> "$GITHUB_STEP_SUMMARY"
+          go tool cover -func=coverage-integration.out | grep -v "total:" | awk -F'\t+' '{print $1, $NF}' | sort -u -t' ' -k1,1 | while read -r pkg cov; do
+            echo "| \`${pkg}\` | ${cov} |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+  simulator:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install ios-webkit-debug-proxy
+        run: brew install ios-webkit-debug-proxy
+
+      - name: Boot iOS Simulator and start iwdp
+        run: |
+          eval "$(./scripts/sim-setup.sh)"
+          echo "IWDP_SIM_WS_URL=$IWDP_SIM_WS_URL" >> "$GITHUB_ENV"
+
+      - name: Run simulator tests with coverage
+        run: go test -tags=simulator ./... -v -count=1 -timeout=300s -coverprofile=coverage-simulator.out
+
+      - name: Simulator coverage summary
+        if: always()
+        run: |
+          if [ -f coverage-simulator.out ]; then
+            total=$(go tool cover -func=coverage-simulator.out | tail -1 | awk '{print $NF}')
+            echo "## Simulator Test Coverage" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Total: ${total}**" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Package | Coverage |" >> "$GITHUB_STEP_SUMMARY"
+            echo "|---------|----------|" >> "$GITHUB_STEP_SUMMARY"
+            go tool cover -func=coverage-simulator.out | grep -v "total:" | awk -F'\t+' '{print $1, $NF}' | sort -u -t' ' -k1,1 | while read -r pkg cov; do
+              echo "| \`${pkg}\` | ${cov} |" >> "$GITHUB_STEP_SUMMARY"
+            done
+          fi
+
+      - name: Teardown simulator
+        if: always()
+        run: ./scripts/sim-setup.sh --teardown

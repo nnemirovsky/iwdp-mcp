@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "iwdp-mcp": {
+      "command": "./scripts/run.sh"
+    }
+  }
+}

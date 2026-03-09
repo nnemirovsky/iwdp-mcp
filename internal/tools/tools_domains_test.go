@@ -1,0 +1,1001 @@
+package tools_test
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+	"time"
+
+	"github.com/nnemirovsky/iwdp-mcp/internal/tools"
+	"github.com/nnemirovsky/iwdp-mcp/internal/webkit"
+	"github.com/nnemirovsky/iwdp-mcp/internal/webkit/testutil"
+)
+
+// Ensure imports are used.
+var (
+	_ *testutil.MockServer
+	_ webkit.BreakpointID
+)
+
+// ---------------------------------------------------------------------------
+// Debugger domain
+// ---------------------------------------------------------------------------
+
+func TestDebuggerEnable(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Debugger.enable", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.DebuggerEnable(ctx, client); err != nil {
+		t.Fatalf("DebuggerEnable returned error: %v", err)
+	}
+}
+
+func TestDebuggerDisable(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Debugger.disable", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.DebuggerDisable(ctx, client); err != nil {
+		t.Fatalf("DebuggerDisable returned error: %v", err)
+	}
+}
+
+func TestSetBreakpointByURL(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Debugger.setBreakpointByUrl", map[string]interface{}{
+		"breakpointId": "bp-1",
+		"locations": []map[string]interface{}{
+			{"scriptId": "1", "lineNumber": 10, "columnNumber": 0},
+		},
+	})
+
+	ctx := context.Background()
+	bpID, locations, err := tools.SetBreakpointByURL(ctx, client, "test.js", 10, nil, "")
+	if err != nil {
+		t.Fatalf("SetBreakpointByURL returned error: %v", err)
+	}
+	if string(bpID) != "bp-1" {
+		t.Errorf("expected breakpointId %q, got %q", "bp-1", bpID)
+	}
+	if len(locations) != 1 {
+		t.Fatalf("expected 1 location, got %d", len(locations))
+	}
+	if locations[0].ScriptID != "1" {
+		t.Errorf("expected scriptId %q, got %q", "1", locations[0].ScriptID)
+	}
+	if locations[0].LineNumber != 10 {
+		t.Errorf("expected lineNumber 10, got %d", locations[0].LineNumber)
+	}
+}
+
+func TestSetBreakpointByURLWithCondition(t *testing.T) {
+	mock, client := setup(t)
+
+	var receivedColumn interface{}
+	var receivedCondition string
+	mock.Handle("Debugger.setBreakpointByUrl", func(_ string, params json.RawMessage) (interface{}, error) {
+		var p map[string]interface{}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		receivedColumn = p["columnNumber"]
+		if c, ok := p["condition"].(string); ok {
+			receivedCondition = c
+		}
+		return map[string]interface{}{
+			"breakpointId": "bp-2",
+			"locations": []map[string]interface{}{
+				{"scriptId": "1", "lineNumber": 10, "columnNumber": 5},
+			},
+		}, nil
+	})
+
+	ctx := context.Background()
+	col := 5
+	bpID, _, err := tools.SetBreakpointByURL(ctx, client, "test.js", 10, &col, "x > 10")
+	if err != nil {
+		t.Fatalf("SetBreakpointByURL returned error: %v", err)
+	}
+	if string(bpID) != "bp-2" {
+		t.Errorf("expected breakpointId %q, got %q", "bp-2", bpID)
+	}
+	if receivedColumn == nil {
+		t.Errorf("expected columnNumber to be sent, but it was nil")
+	} else if int(receivedColumn.(float64)) != 5 {
+		t.Errorf("expected columnNumber 5, got %v", receivedColumn)
+	}
+	if receivedCondition != "x > 10" {
+		t.Errorf("expected condition %q, got %q", "x > 10", receivedCondition)
+	}
+}
+
+func TestRemoveBreakpoint(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Debugger.removeBreakpoint", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.RemoveBreakpoint(ctx, client, "bp-1"); err != nil {
+		t.Fatalf("RemoveBreakpoint returned error: %v", err)
+	}
+}
+
+func TestPause(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Debugger.pause", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.Pause(ctx, client); err != nil {
+		t.Fatalf("Pause returned error: %v", err)
+	}
+}
+
+func TestResume(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Debugger.resume", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.Resume(ctx, client); err != nil {
+		t.Fatalf("Resume returned error: %v", err)
+	}
+}
+
+func TestStepOver(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Debugger.stepOver", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.StepOver(ctx, client); err != nil {
+		t.Fatalf("StepOver returned error: %v", err)
+	}
+}
+
+func TestStepInto(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Debugger.stepInto", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.StepInto(ctx, client); err != nil {
+		t.Fatalf("StepInto returned error: %v", err)
+	}
+}
+
+func TestStepOut(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Debugger.stepOut", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.StepOut(ctx, client); err != nil {
+		t.Fatalf("StepOut returned error: %v", err)
+	}
+}
+
+func TestGetScriptSource(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Debugger.getScriptSource", map[string]interface{}{
+		"scriptSource": "console.log('hello')",
+	})
+
+	ctx := context.Background()
+	src, err := tools.GetScriptSource(ctx, client, "script1")
+	if err != nil {
+		t.Fatalf("GetScriptSource returned error: %v", err)
+	}
+	if src != "console.log('hello')" {
+		t.Errorf("expected source %q, got %q", "console.log('hello')", src)
+	}
+}
+
+func TestSearchInContent(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Debugger.searchInContent", map[string]interface{}{
+		"result": []map[string]interface{}{
+			{"lineNumber": 5, "lineContent": "hello world"},
+		},
+	})
+
+	ctx := context.Background()
+	result, err := tools.SearchInContent(ctx, client, "script1", "hello", true, false)
+	if err != nil {
+		t.Fatalf("SearchInContent returned error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+}
+
+func TestEvaluateOnCallFrame(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Debugger.evaluateOnCallFrame", map[string]interface{}{
+		"result": map[string]interface{}{
+			"type":  "number",
+			"value": 42,
+		},
+		"wasThrown": false,
+	})
+
+	ctx := context.Background()
+	result, err := tools.EvaluateOnCallFrame(ctx, client, "frame1", "x", true)
+	if err != nil {
+		t.Fatalf("EvaluateOnCallFrame returned error: %v", err)
+	}
+	if result.Result.Type != "number" {
+		t.Errorf("expected result type %q, got %q", "number", result.Result.Type)
+	}
+	if result.WasThrown {
+		t.Errorf("expected wasThrown to be false")
+	}
+}
+
+func TestEvaluateOnCallFrameThrown(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Debugger.evaluateOnCallFrame", map[string]interface{}{
+		"result": map[string]interface{}{
+			"type": "object",
+		},
+		"wasThrown": true,
+		"exceptionDetails": map[string]interface{}{
+			"text": "ReferenceError: x is not defined",
+			"exception": map[string]interface{}{
+				"type":        "object",
+				"description": "ReferenceError: x is not defined",
+			},
+		},
+	})
+
+	ctx := context.Background()
+	result, err := tools.EvaluateOnCallFrame(ctx, client, "frame1", "x", true)
+	if err == nil {
+		t.Fatal("expected error for thrown exception, got nil")
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result even on thrown exception")
+	}
+	if !result.WasThrown {
+		t.Errorf("expected wasThrown to be true")
+	}
+}
+
+func TestSetPauseOnExceptions(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Debugger.setPauseOnExceptions", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.SetPauseOnExceptions(ctx, client, "all"); err != nil {
+		t.Fatalf("SetPauseOnExceptions returned error: %v", err)
+	}
+}
+
+func TestSetDOMBreakpoint(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("DOMDebugger.setDOMBreakpoint", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.SetDOMBreakpoint(ctx, client, 42, "subtree-modified"); err != nil {
+		t.Fatalf("SetDOMBreakpoint returned error: %v", err)
+	}
+}
+
+func TestRemoveDOMBreakpoint(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("DOMDebugger.removeDOMBreakpoint", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.RemoveDOMBreakpoint(ctx, client, 42, "subtree-modified"); err != nil {
+		t.Fatalf("RemoveDOMBreakpoint returned error: %v", err)
+	}
+}
+
+func TestSetEventBreakpoint(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("DOMDebugger.setEventBreakpoint", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.SetEventBreakpoint(ctx, client, "click"); err != nil {
+		t.Fatalf("SetEventBreakpoint returned error: %v", err)
+	}
+}
+
+func TestRemoveEventBreakpoint(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("DOMDebugger.removeEventBreakpoint", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.RemoveEventBreakpoint(ctx, client, "click"); err != nil {
+		t.Fatalf("RemoveEventBreakpoint returned error: %v", err)
+	}
+}
+
+func TestSetURLBreakpoint(t *testing.T) {
+	mock, client := setup(t)
+
+	var receivedURL string
+	var receivedIsRegex bool
+	mock.Handle("DOMDebugger.setURLBreakpoint", func(_ string, params json.RawMessage) (interface{}, error) {
+		var p struct {
+			URL     string `json:"url"`
+			IsRegex bool   `json:"isRegex"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		receivedURL = p.URL
+		receivedIsRegex = p.IsRegex
+		return map[string]interface{}{}, nil
+	})
+
+	ctx := context.Background()
+	if err := tools.SetURLBreakpoint(ctx, client, "https://example.com/api.*", true); err != nil {
+		t.Fatalf("SetURLBreakpoint returned error: %v", err)
+	}
+	if receivedURL != "https://example.com/api.*" {
+		t.Errorf("expected url %q, got %q", "https://example.com/api.*", receivedURL)
+	}
+	if !receivedIsRegex {
+		t.Errorf("expected isRegex to be true")
+	}
+}
+
+func TestRemoveURLBreakpoint(t *testing.T) {
+	mock, client := setup(t)
+
+	var receivedURL string
+	mock.Handle("DOMDebugger.removeURLBreakpoint", func(_ string, params json.RawMessage) (interface{}, error) {
+		var p struct {
+			URL string `json:"url"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		receivedURL = p.URL
+		return map[string]interface{}{}, nil
+	})
+
+	ctx := context.Background()
+	if err := tools.RemoveURLBreakpoint(ctx, client, "https://example.com/api"); err != nil {
+		t.Fatalf("RemoveURLBreakpoint returned error: %v", err)
+	}
+	if receivedURL != "https://example.com/api" {
+		t.Errorf("expected url %q, got %q", "https://example.com/api", receivedURL)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Timeline domain
+// ---------------------------------------------------------------------------
+
+func TestTimelineStart(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Timeline.start", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.TimelineStart(ctx, client, 0); err != nil {
+		t.Fatalf("TimelineStart returned error: %v", err)
+	}
+}
+
+func TestTimelineStartWithDepth(t *testing.T) {
+	mock, client := setup(t)
+
+	var receivedDepth float64
+	mock.Handle("Timeline.start", func(_ string, params json.RawMessage) (interface{}, error) {
+		var p map[string]interface{}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		if d, ok := p["maxCallStackDepth"]; ok {
+			receivedDepth = d.(float64)
+		}
+		return map[string]interface{}{}, nil
+	})
+
+	ctx := context.Background()
+	if err := tools.TimelineStart(ctx, client, 10); err != nil {
+		t.Fatalf("TimelineStart returned error: %v", err)
+	}
+	if int(receivedDepth) != 10 {
+		t.Errorf("expected maxCallStackDepth 10, got %v", receivedDepth)
+	}
+}
+
+func TestTimelineStop(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Timeline.stop", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.TimelineStop(ctx, client); err != nil {
+		t.Fatalf("TimelineStop returned error: %v", err)
+	}
+}
+
+func TestTimelineCollector(t *testing.T) {
+	mock, client := setup(t)
+
+	// Register handler for Timeline.start so collector.Start() succeeds.
+	mock.HandleFunc("Timeline.start", map[string]interface{}{})
+
+	collector := tools.NewTimelineCollector()
+	ctx := context.Background()
+	if err := collector.Start(ctx, client, 0); err != nil {
+		t.Fatalf("TimelineCollector.Start: %v", err)
+	}
+
+	// Send a Timeline.eventRecorded event from the mock server.
+	err := mock.SendEvent("Timeline.eventRecorded", map[string]interface{}{
+		"record": map[string]interface{}{
+			"type": "FunctionCall",
+			"data": map[string]interface{}{
+				"functionName": "test",
+			},
+			"startTime": 1000,
+			"endTime":   1001,
+		},
+	})
+	if err != nil {
+		t.Fatalf("SendEvent: %v", err)
+	}
+
+	// Allow time for the event handler to process.
+	time.Sleep(100 * time.Millisecond)
+
+	events := collector.GetEvents()
+	if len(events) != 1 {
+		t.Fatalf("expected 1 timeline event, got %d", len(events))
+	}
+	if events[0].Type != "FunctionCall" {
+		t.Errorf("expected event type %q, got %q", "FunctionCall", events[0].Type)
+	}
+	if events[0].StartTime != 1000 {
+		t.Errorf("expected startTime 1000, got %v", events[0].StartTime)
+	}
+	if events[0].EndTime != 1001 {
+		t.Errorf("expected endTime 1001, got %v", events[0].EndTime)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Memory domain
+// ---------------------------------------------------------------------------
+
+func TestMemoryStartTracking(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Memory.startTracking", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.MemoryStartTracking(ctx, client); err != nil {
+		t.Fatalf("MemoryStartTracking returned error: %v", err)
+	}
+}
+
+func TestMemoryStopTracking(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Memory.stopTracking", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.MemoryStopTracking(ctx, client); err != nil {
+		t.Fatalf("MemoryStopTracking returned error: %v", err)
+	}
+}
+
+func TestHeapSnapshot(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Heap.snapshot", map[string]interface{}{
+		"snapshotData": "snapshot-content",
+		"title":        "Heap Snapshot",
+	})
+
+	ctx := context.Background()
+	result, err := tools.HeapSnapshot(ctx, client)
+	if err != nil {
+		t.Fatalf("HeapSnapshot returned error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	// Verify the raw JSON contains expected data.
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(result, &parsed); err != nil {
+		t.Fatalf("failed to parse result JSON: %v", err)
+	}
+	if parsed["title"] != "Heap Snapshot" {
+		t.Errorf("expected title %q, got %v", "Heap Snapshot", parsed["title"])
+	}
+}
+
+func TestHeapStartTracking(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Heap.startTracking", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.HeapStartTracking(ctx, client); err != nil {
+		t.Fatalf("HeapStartTracking returned error: %v", err)
+	}
+}
+
+func TestHeapStopTracking(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Heap.stopTracking", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.HeapStopTracking(ctx, client); err != nil {
+		t.Fatalf("HeapStopTracking returned error: %v", err)
+	}
+}
+
+func TestHeapGC(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Heap.gc", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.HeapGC(ctx, client); err != nil {
+		t.Fatalf("HeapGC returned error: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Profiler domain
+// ---------------------------------------------------------------------------
+
+func TestCPUStartProfiling(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("CPUProfiler.startTracking", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.CPUStartProfiling(ctx, client); err != nil {
+		t.Fatalf("CPUStartProfiling returned error: %v", err)
+	}
+}
+
+func TestCPUStopProfiling(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("CPUProfiler.stopTracking", map[string]interface{}{
+		"profile": map[string]interface{}{
+			"nodes":     []interface{}{},
+			"startTime": 0,
+			"endTime":   1000,
+		},
+	})
+
+	ctx := context.Background()
+	result, err := tools.CPUStopProfiling(ctx, client)
+	if err != nil {
+		t.Fatalf("CPUStopProfiling returned error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(result, &parsed); err != nil {
+		t.Fatalf("failed to parse result JSON: %v", err)
+	}
+	if _, ok := parsed["profile"]; !ok {
+		t.Errorf("expected profile key in result")
+	}
+}
+
+func TestScriptStartProfiling(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("ScriptProfiler.startTracking", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.ScriptStartProfiling(ctx, client); err != nil {
+		t.Fatalf("ScriptStartProfiling returned error: %v", err)
+	}
+}
+
+func TestScriptStopProfiling(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("ScriptProfiler.stopTracking", map[string]interface{}{
+		"profiles": []interface{}{},
+	})
+
+	ctx := context.Background()
+	result, err := tools.ScriptStopProfiling(ctx, client)
+	if err != nil {
+		t.Fatalf("ScriptStopProfiling returned error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Animation domain
+// ---------------------------------------------------------------------------
+
+func TestAnimationEnable(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Animation.enable", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.AnimationEnable(ctx, client); err != nil {
+		t.Fatalf("AnimationEnable returned error: %v", err)
+	}
+}
+
+func TestAnimationDisable(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Animation.disable", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.AnimationDisable(ctx, client); err != nil {
+		t.Fatalf("AnimationDisable returned error: %v", err)
+	}
+}
+
+func TestAnimationStartTracking(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Animation.startTracking", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.AnimationStartTracking(ctx, client); err != nil {
+		t.Fatalf("AnimationStartTracking returned error: %v", err)
+	}
+}
+
+func TestAnimationStopTracking(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Animation.stopTracking", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.AnimationStopTracking(ctx, client); err != nil {
+		t.Fatalf("AnimationStopTracking returned error: %v", err)
+	}
+}
+
+func TestGetAnimationEffect(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Animation.requestEffectTarget", map[string]interface{}{
+		"nodeId": 99,
+	})
+
+	ctx := context.Background()
+	result, err := tools.GetAnimationEffect(ctx, client, "anim-1")
+	if err != nil {
+		t.Fatalf("GetAnimationEffect returned error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(result, &parsed); err != nil {
+		t.Fatalf("failed to parse result JSON: %v", err)
+	}
+	if int(parsed["nodeId"].(float64)) != 99 {
+		t.Errorf("expected nodeId 99, got %v", parsed["nodeId"])
+	}
+}
+
+func TestResolveAnimation(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Animation.resolveAnimation", map[string]interface{}{
+		"object": map[string]interface{}{
+			"type":     "object",
+			"objectId": "anim-obj-1",
+		},
+	})
+
+	ctx := context.Background()
+	obj, err := tools.ResolveAnimation(ctx, client, "anim-1", "test-group")
+	if err != nil {
+		t.Fatalf("ResolveAnimation returned error: %v", err)
+	}
+	if obj == nil {
+		t.Fatal("expected non-nil object")
+	}
+	if obj.Type != "object" {
+		t.Errorf("expected object type %q, got %q", "object", obj.Type)
+	}
+	if obj.ObjectID != "anim-obj-1" {
+		t.Errorf("expected objectId %q, got %q", "anim-obj-1", obj.ObjectID)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Canvas domain
+// ---------------------------------------------------------------------------
+
+func TestCanvasEnable(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Canvas.enable", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.CanvasEnable(ctx, client); err != nil {
+		t.Fatalf("CanvasEnable returned error: %v", err)
+	}
+}
+
+func TestCanvasDisable(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Canvas.disable", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.CanvasDisable(ctx, client); err != nil {
+		t.Fatalf("CanvasDisable returned error: %v", err)
+	}
+}
+
+func TestGetCanvasContent(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Canvas.requestContent", map[string]interface{}{
+		"content": "data:image/png;base64,abc",
+	})
+
+	ctx := context.Background()
+	content, err := tools.GetCanvasContent(ctx, client, "canvas-1")
+	if err != nil {
+		t.Fatalf("GetCanvasContent returned error: %v", err)
+	}
+	if content != "data:image/png;base64,abc" {
+		t.Errorf("expected content %q, got %q", "data:image/png;base64,abc", content)
+	}
+}
+
+func TestStartCanvasRecording(t *testing.T) {
+	mock, client := setup(t)
+
+	var receivedSingleFrame bool
+	mock.Handle("Canvas.startRecording", func(_ string, params json.RawMessage) (interface{}, error) {
+		var p struct {
+			CanvasID    string `json:"canvasId"`
+			SingleFrame bool   `json:"singleFrame"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		receivedSingleFrame = p.SingleFrame
+		return map[string]interface{}{}, nil
+	})
+
+	ctx := context.Background()
+	if err := tools.StartCanvasRecording(ctx, client, "canvas-1", true); err != nil {
+		t.Fatalf("StartCanvasRecording returned error: %v", err)
+	}
+	if !receivedSingleFrame {
+		t.Errorf("expected singleFrame to be true")
+	}
+}
+
+func TestStopCanvasRecording(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Canvas.stopRecording", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.StopCanvasRecording(ctx, client, "canvas-1"); err != nil {
+		t.Fatalf("StopCanvasRecording returned error: %v", err)
+	}
+}
+
+func TestGetShaderSource(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Canvas.requestShaderSource", map[string]interface{}{
+		"content": "void main() {}",
+	})
+
+	ctx := context.Background()
+	src, err := tools.GetShaderSource(ctx, client, "prog-1", "vertex")
+	if err != nil {
+		t.Fatalf("GetShaderSource returned error: %v", err)
+	}
+	if src != "void main() {}" {
+		t.Errorf("expected shader source %q, got %q", "void main() {}", src)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// LayerTree domain
+// ---------------------------------------------------------------------------
+
+func TestGetLayerTree(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("LayerTree.layersForNode", map[string]interface{}{
+		"layers": []map[string]interface{}{
+			{"layerId": "layer-1", "nodeId": 1, "bounds": map[string]interface{}{"x": 0, "y": 0, "width": 100, "height": 100}},
+		},
+	})
+
+	ctx := context.Background()
+	result, err := tools.GetLayerTree(ctx, client, 1)
+	if err != nil {
+		t.Fatalf("GetLayerTree returned error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(result, &parsed); err != nil {
+		t.Fatalf("failed to parse result JSON: %v", err)
+	}
+	layers, ok := parsed["layers"].([]interface{})
+	if !ok {
+		t.Fatal("expected layers array in result")
+	}
+	if len(layers) != 1 {
+		t.Errorf("expected 1 layer, got %d", len(layers))
+	}
+}
+
+func TestGetCompositingReasons(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("LayerTree.reasonsForCompositingLayer", map[string]interface{}{
+		"compositingReasons": []string{"transform", "overlap"},
+	})
+
+	ctx := context.Background()
+	result, err := tools.GetCompositingReasons(ctx, client, "layer-1")
+	if err != nil {
+		t.Fatalf("GetCompositingReasons returned error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(result, &parsed); err != nil {
+		t.Fatalf("failed to parse result JSON: %v", err)
+	}
+	reasons, ok := parsed["compositingReasons"].([]interface{})
+	if !ok {
+		t.Fatal("expected compositingReasons array in result")
+	}
+	if len(reasons) != 2 {
+		t.Errorf("expected 2 compositing reasons, got %d", len(reasons))
+	}
+}
+
+func TestGetLayerContent(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("LayerTree.snapshotLayer", map[string]interface{}{
+		"snapshotId": "snap-1",
+	})
+
+	ctx := context.Background()
+	result, err := tools.GetLayerContent(ctx, client, "layer-1")
+	if err != nil {
+		t.Fatalf("GetLayerContent returned error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(result, &parsed); err != nil {
+		t.Fatalf("failed to parse result JSON: %v", err)
+	}
+	if parsed["snapshotId"] != "snap-1" {
+		t.Errorf("expected snapshotId %q, got %v", "snap-1", parsed["snapshotId"])
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Worker domain
+// ---------------------------------------------------------------------------
+
+func TestWorkerEnable(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Worker.enable", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.WorkerEnable(ctx, client); err != nil {
+		t.Fatalf("WorkerEnable returned error: %v", err)
+	}
+}
+
+func TestWorkerDisable(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Worker.disable", map[string]interface{}{})
+
+	ctx := context.Background()
+	if err := tools.WorkerDisable(ctx, client); err != nil {
+		t.Fatalf("WorkerDisable returned error: %v", err)
+	}
+}
+
+func TestSendToWorker(t *testing.T) {
+	mock, client := setup(t)
+
+	var receivedWorkerID, receivedMessage string
+	mock.Handle("Worker.sendMessageToWorker", func(_ string, params json.RawMessage) (interface{}, error) {
+		var p struct {
+			WorkerID string `json:"workerId"`
+			Message  string `json:"message"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		receivedWorkerID = p.WorkerID
+		receivedMessage = p.Message
+		return map[string]interface{}{}, nil
+	})
+
+	ctx := context.Background()
+	if err := tools.SendToWorker(ctx, client, "worker-1", `{"method":"echo"}`); err != nil {
+		t.Fatalf("SendToWorker returned error: %v", err)
+	}
+	if receivedWorkerID != "worker-1" {
+		t.Errorf("expected workerId %q, got %q", "worker-1", receivedWorkerID)
+	}
+	if receivedMessage != `{"method":"echo"}` {
+		t.Errorf("expected message %q, got %q", `{"method":"echo"}`, receivedMessage)
+	}
+}
+
+func TestGetServiceWorkerInfo(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("ServiceWorker.getInitializationInfo", map[string]interface{}{
+		"info": map[string]interface{}{
+			"registrations": []interface{}{},
+		},
+	})
+
+	ctx := context.Background()
+	result, err := tools.GetServiceWorkerInfo(ctx, client)
+	if err != nil {
+		t.Fatalf("GetServiceWorkerInfo returned error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Audit domain
+// ---------------------------------------------------------------------------
+
+func TestRunAudit(t *testing.T) {
+	mock, client := setup(t)
+
+	mock.HandleFunc("Audit.setup", map[string]interface{}{})
+	mock.HandleFunc("Audit.run", map[string]interface{}{
+		"result": map[string]interface{}{
+			"passed": true,
+			"errors": []interface{}{},
+		},
+	})
+	mock.HandleFunc("Audit.teardown", map[string]interface{}{})
+
+	ctx := context.Background()
+	result, err := tools.RunAudit(ctx, client, "testCode")
+	if err != nil {
+		t.Fatalf("RunAudit returned error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(result, &parsed); err != nil {
+		t.Fatalf("failed to parse result JSON: %v", err)
+	}
+	r, ok := parsed["result"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected result object in response")
+	}
+	if r["passed"] != true {
+		t.Errorf("expected passed to be true, got %v", r["passed"])
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Security domain
+// ---------------------------------------------------------------------------
+
+func TestGetCertificateInfo(t *testing.T) {
+	mock, client := setup(t)
+	mock.HandleFunc("Network.getSerializedCertificate", map[string]interface{}{
+		"serializedCertificate": "MIIB...",
+	})
+
+	ctx := context.Background()
+	result, err := tools.GetCertificateInfo(ctx, client, "req-1")
+	if err != nil {
+		t.Fatalf("GetCertificateInfo returned error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(result, &parsed); err != nil {
+		t.Fatalf("failed to parse result JSON: %v", err)
+	}
+	if parsed["serializedCertificate"] != "MIIB..." {
+		t.Errorf("expected serializedCertificate %q, got %v", "MIIB...", parsed["serializedCertificate"])
+	}
+}

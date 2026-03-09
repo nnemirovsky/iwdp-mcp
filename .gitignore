@@ -1,0 +1,21 @@
+# Binaries
+bin/
+./iwdp-mcp
+./iwdp-cli
+
+# Coverage
+coverage.out
+coverage.html
+
+# goreleaser
+dist/
+
+# IDE
+.idea/
+.vscode/
+.zed/
+*.swp
+*.swo
+
+# OS
+.DS_Store
