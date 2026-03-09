@@ -1,4 +1,4 @@
-# iwdp-mcp — iOS Safari Debugging MCP Server
+# iOS WebKit Debug Proxy MCP Server + CLI
 
 [![CI](https://github.com/nnemirovsky/iwdp-mcp/actions/workflows/test.yml/badge.svg)](https://github.com/nnemirovsky/iwdp-mcp/actions/workflows/test.yml)
 [![Lint](https://github.com/nnemirovsky/iwdp-mcp/actions/workflows/lint.yml/badge.svg)](https://github.com/nnemirovsky/iwdp-mcp/actions/workflows/lint.yml)
