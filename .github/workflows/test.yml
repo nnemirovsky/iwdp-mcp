@@ -110,6 +110,39 @@ jobs:
           eval "$(./scripts/sim-setup.sh)"
           echo "IWDP_SIM_WS_URL=$IWDP_SIM_WS_URL" >> "$GITHUB_ENV"
 
+      - name: Debug iwdp connection
+        run: |
+          echo "=== iwdp version ==="
+          ios_webkit_debug_proxy --version || true
+          echo ""
+          echo "=== Devices on port 9221 ==="
+          curl -sf http://localhost:9221/json | python3 -m json.tool || echo "FAILED"
+          echo ""
+          echo "=== Pages on port 9222 ==="
+          curl -sf http://localhost:9222/json | python3 -m json.tool || echo "FAILED"
+          echo ""
+          echo "=== Raw WebSocket test (first 5 messages) ==="
+          python3 -c "
+          import websocket, json, time
+          ws = websocket.create_connection('$IWDP_SIM_WS_URL', timeout=5)
+          for i in range(5):
+              try:
+                  msg = ws.recv()
+                  print(f'Message {i}: {msg}')
+              except:
+                  print(f'No more messages after {i}')
+                  break
+          # Try sending a direct Runtime.evaluate
+          ws.send(json.dumps({'id': 1, 'method': 'Runtime.evaluate', 'params': {'expression': '1+1'}}))
+          time.sleep(1)
+          try:
+              resp = ws.recv()
+              print(f'Direct response: {resp}')
+          except:
+              print('No response to direct message')
+          ws.close()
+          " 2>&1 || echo "Python websocket test failed (may need pip install websocket-client)"
+
       - name: Run simulator tests with coverage
         run: go test -tags=simulator ./... -v -count=1 -timeout=300s -coverprofile=coverage-simulator.out
 
