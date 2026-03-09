@@ -36,18 +36,27 @@ pkill -f ios_webkit_debug_proxy 2>/dev/null || true
 sleep 1
 
 # 1. Find an available iPhone simulator.
+# Prefer iOS 18 or lower — iOS 19+ has breaking WebKit Inspector Protocol changes
+# where many domains (Runtime, DOM, etc.) return "domain was not found" through iwdp.
 DEVICE_NAME=$(xcrun simctl list devices available --json | \
   python3 -c "
-import json, sys
+import json, sys, re
 data = json.load(sys.stdin)
-for runtime, devs in sorted(data['devices'].items(), reverse=True):
+candidates = []
+for runtime, devs in data['devices'].items():
     if 'iOS' not in runtime and 'SimRuntime.iOS' not in runtime:
         continue
+    m = re.search(r'iOS[- ](\d+)', runtime)
+    ver = int(m.group(1)) if m else 0
     for d in devs:
         if 'iPhone' in d['name'] and d['isAvailable']:
-            print(d['name'])
-            sys.exit(0)
-print('', end='')
+            candidates.append((ver, runtime, d['name']))
+if not candidates:
+    print('', end='')
+    sys.exit(0)
+# Sort: prefer iOS 18 and below (ver <= 18 first, descending), then 19+ as fallback
+candidates.sort(key=lambda x: (0 if x[0] <= 18 else 1, -x[0]))
+print(candidates[0][2])
 ")
 
 if [ -z "$DEVICE_NAME" ]; then

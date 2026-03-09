@@ -86,6 +86,25 @@ jobs:
       - name: Install ios-webkit-debug-proxy
         run: brew install ios-webkit-debug-proxy
 
+      - name: Select Xcode with iOS 18 runtime
+        run: |
+          # iOS 19+ has breaking WebKit Inspector Protocol changes (many
+          # domains return "not found"). Use an older Xcode/iOS for testing.
+          echo "Available Xcode versions:"
+          ls -d /Applications/Xcode*.app 2>/dev/null || true
+          echo ""
+          # Prefer Xcode 16 (iOS 18) over Xcode 17 (iOS 19)
+          for xcode in /Applications/Xcode_16*.app; do
+            if [ -d "$xcode" ]; then
+              echo "Selecting $xcode"
+              sudo xcode-select -s "$xcode"
+              break
+            fi
+          done
+          echo "Active Xcode: $(xcode-select -p)"
+          echo "Available runtimes:"
+          xcrun simctl list runtimes
+
       - name: Boot iOS Simulator and start iwdp
         run: |
           eval "$(./scripts/sim-setup.sh)"
