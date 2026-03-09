@@ -420,7 +420,7 @@ func saveScreenshot(dataURL string) (filePath string, result *mcp.CallToolResult
 	if err != nil {
 		return "", nil, fmt.Errorf("creating temp file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if _, err := f.Write(rawBytes); err != nil {
 		return "", nil, fmt.Errorf("writing screenshot: %w", err)
 	}
@@ -452,7 +452,7 @@ func largeResultToFile(result any, prefix string) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("creating temp file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if _, err := f.Write(data); err != nil {
 		return nil, fmt.Errorf("writing result: %w", err)
 	}
