@@ -69,7 +69,7 @@ func NewClientWithDialer(ctx context.Context, wsURL string, dialer *websocket.Di
 	case <-time.After(100 * time.Millisecond):
 		// No Target event — use direct mode (e.g., mock servers in tests)
 	case <-ctx.Done():
-		c.Close()
+		_ = c.Close()
 		return nil, ctx.Err()
 	}
 

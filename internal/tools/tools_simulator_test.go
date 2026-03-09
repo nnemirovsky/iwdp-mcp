@@ -355,7 +355,6 @@ func TestSim_GetMatchedStyles(t *testing.T) {
 	}
 }
 
-
 func TestSim_ForcePseudoState(t *testing.T) {
 	client := getSimClient(t)
 	ctx, cancel := simCtx()

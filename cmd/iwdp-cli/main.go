@@ -451,9 +451,9 @@ func cmdNetwork(ctx context.Context, args []string) {
 
 	client.OnEvent("Network.loadingFailed", func(method string, params json.RawMessage) {
 		var evt struct {
-			RequestID    string `json:"requestId"`
-			ErrorText    string `json:"errorText"`
-			Canceled     bool   `json:"canceled"`
+			RequestID string `json:"requestId"`
+			ErrorText string `json:"errorText"`
+			Canceled  bool   `json:"canceled"`
 		}
 		if err := json.Unmarshal(params, &evt); err != nil {
 			return

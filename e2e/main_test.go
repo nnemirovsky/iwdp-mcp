@@ -15,7 +15,7 @@ func trackTempDir(dir string) {
 func TestMain(m *testing.M) {
 	code := m.Run()
 	for _, dir := range tempDirs {
-		os.RemoveAll(dir)
+		_ = os.RemoveAll(dir)
 	}
 	os.Exit(code)
 }
