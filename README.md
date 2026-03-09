@@ -1,4 +1,4 @@
-# iwdp-mcp
+# iwdp-mcp — iOS Safari Debugging MCP Server
 
 [![CI](https://github.com/nnemirovsky/iwdp-mcp/actions/workflows/test.yml/badge.svg)](https://github.com/nnemirovsky/iwdp-mcp/actions/workflows/test.yml)
 [![Lint](https://github.com/nnemirovsky/iwdp-mcp/actions/workflows/lint.yml/badge.svg)](https://github.com/nnemirovsky/iwdp-mcp/actions/workflows/lint.yml)
@@ -14,6 +14,15 @@ MCP server + CLI for debugging iOS Safari via [ios-webkit-debug-proxy](https://g
 Speaks **WebKit Inspector Protocol** natively — full access to all 27 WebKit Inspector domains, including httpOnly cookies, network interception, heap snapshots, and more.
 
 ## Installation
+
+### Claude Code Plugin (recommended)
+
+Inside Claude Code, run:
+
+```
+/plugin marketplace add nnemirovsky/iwdp-mcp
+/plugin install iwdp-mcp
+```
 
 ### Go Install
 
@@ -76,6 +85,35 @@ iwdp-cli cookies
 ### MCP Server
 
 <details>
+<summary><strong>Claude Code</strong></summary>
+
+Install as a plugin (recommended):
+
+```
+/plugin marketplace add nnemirovsky/iwdp-mcp
+/plugin install iwdp-mcp
+```
+
+Or add to your project's `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "iwdp-mcp": {
+      "command": "iwdp-mcp"
+    }
+  }
+}
+```
+
+Or via CLI:
+
+```sh
+claude mcp add iwdp-mcp -- iwdp-mcp
+```
+</details>
+
+<details>
 <summary><strong>Claude Desktop</strong></summary>
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
@@ -92,32 +130,9 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 </details>
 
 <details>
-<summary><strong>Claude Code</strong></summary>
+<summary><strong>VS Code / VS Code Insiders</strong></summary>
 
-Add to your project's `.mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "iwdp-mcp": {
-      "command": "iwdp-mcp"
-    }
-  }
-}
-```
-
-Or install as a Claude Code plugin:
-
-```
-/plugin marketplace add nnemirovsky/iwdp-mcp
-/plugin install iwdp-mcp
-```
-</details>
-
-<details>
-<summary><strong>VS Code / Cursor</strong></summary>
-
-Add to `.vscode/mcp.json` in your workspace:
+Click the install badges at the top of this README, or add to `.vscode/mcp.json`:
 
 ```json
 {
@@ -129,7 +144,90 @@ Add to `.vscode/mcp.json` in your workspace:
 }
 ```
 
-Or click the install badges at the top of this README.
+Or via CLI:
+
+```sh
+code --add-mcp '{"name":"iwdp-mcp","command":"iwdp-mcp"}'
+```
+</details>
+
+<details>
+<summary><strong>Cursor</strong></summary>
+
+Click the Cursor install badge at the top of this README, or add to `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "iwdp-mcp": {
+      "command": "iwdp-mcp"
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>Windsurf</strong></summary>
+
+Add to `~/.codeium/windsurf/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "iwdp-mcp": {
+      "command": "iwdp-mcp"
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>Codex CLI</strong></summary>
+
+```sh
+codex mcp add iwdp-mcp -- iwdp-mcp
+```
+
+Or add to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.iwdp-mcp]
+command = "iwdp-mcp"
+```
+</details>
+
+<details>
+<summary><strong>Antigravity</strong></summary>
+
+Add to `~/.gemini/antigravity/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "iwdp-mcp": {
+      "command": "iwdp-mcp"
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>JetBrains IDEs</strong></summary>
+
+Go to **Settings → Tools → AI Assistant → Model Context Protocol (MCP) → Add**, or add the following JSON config:
+
+```json
+{
+  "mcpServers": {
+    "iwdp-mcp": {
+      "command": "iwdp-mcp"
+    }
+  }
+}
+```
 </details>
 
 ### Claude Code Prompts
