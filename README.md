@@ -5,9 +5,14 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/nnemirovsky/iwdp-mcp)](https://goreportcard.com/report/github.com/nnemirovsky/iwdp-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+[![Install in Claude Code](https://img.shields.io/badge/Claude_Code-Install_Plugin-F97316?style=flat-square&logo=claude&logoColor=white)](#claude-code)
 [![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=iwdp-mcp&config=%7B%22command%22%3A%22iwdp-mcp%22%7D)
 [![Install in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install_Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=iwdp-mcp&config=%7B%22command%22%3A%22iwdp-mcp%22%7D&quality=insiders)
 [![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=iwdp-mcp&config=eyJjb21tYW5kIjoiaXdkcC1tY3AifQ==)
+[![Install in Windsurf](https://img.shields.io/badge/Windsurf-Install_Server-5C2D91?style=flat-square&logo=codeium&logoColor=white)](#windsurf)
+[![Install in Codex](https://img.shields.io/badge/Codex_CLI-Install_Server-74AA9C?style=flat-square&logo=openai&logoColor=white)](#codex-cli)
+[![Install in Antigravity](https://img.shields.io/badge/Antigravity-Install_Server-4285F4?style=flat-square&logo=google&logoColor=white)](#antigravity)
+[![Install in JetBrains](https://img.shields.io/badge/JetBrains-Install_Server-000000?style=flat-square&logo=jetbrains&logoColor=white)](#jetbrains-ides)
 
 MCP server + CLI for debugging iOS Safari via [ios-webkit-debug-proxy](https://github.com/google/ios-webkit-debug-proxy).
 
@@ -84,7 +89,7 @@ iwdp-cli cookies
 
 ### MCP Server
 
-<details>
+<details id="claude-code">
 <summary><strong>Claude Code</strong></summary>
 
 Install as a plugin (recommended):
@@ -167,7 +172,7 @@ Click the Cursor install badge at the top of this README, or add to `.cursor/mcp
 ```
 </details>
 
-<details>
+<details id="windsurf">
 <summary><strong>Windsurf</strong></summary>
 
 Add to `~/.codeium/windsurf/mcp_config.json`:
@@ -183,7 +188,7 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
 ```
 </details>
 
-<details>
+<details id="codex-cli">
 <summary><strong>Codex CLI</strong></summary>
 
 ```sh
@@ -198,7 +203,7 @@ command = "iwdp-mcp"
 ```
 </details>
 
-<details>
+<details id="antigravity">
 <summary><strong>Antigravity</strong></summary>
 
 Add to `~/.gemini/antigravity/mcp_config.json`:
@@ -214,7 +219,7 @@ Add to `~/.gemini/antigravity/mcp_config.json`:
 ```
 </details>
 
-<details>
+<details id="jetbrains-ides">
 <summary><strong>JetBrains IDEs</strong></summary>
 
 Go to **Settings → Tools → AI Assistant → Model Context Protocol (MCP) → Add**, or add the following JSON config:
