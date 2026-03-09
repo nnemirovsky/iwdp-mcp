@@ -58,7 +58,7 @@ func lookupInterceptStage(requestID string) string {
 func main() {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "iwdp-mcp",
-		Version: "0.3.3",
+		Version: "0.3.4",
 	}, nil)
 
 	registerTools(server)
@@ -668,7 +668,7 @@ func registerTools(server *mcp.Server) {
 		}
 		out := EvaluateScriptOutput{Result: result.Result, Type: result.Result.Type}
 		if fileResult, err := largeResultToFile(out, "eval"); err == nil && fileResult != nil {
-			return fileResult, out, nil
+			return fileResult, nil, nil
 		}
 		return nil, out, nil
 	})
@@ -686,7 +686,7 @@ func registerTools(server *mcp.Server) {
 		}
 		out := RawOutput{Result: result.Result}
 		if fileResult, err := largeResultToFile(out, "call-fn"); err == nil && fileResult != nil {
-			return fileResult, out, nil
+			return fileResult, nil, nil
 		}
 		return nil, out, nil
 	})
@@ -704,7 +704,7 @@ func registerTools(server *mcp.Server) {
 		}
 		out := RawOutput{Result: props}
 		if fileResult, err := largeResultToFile(out, "props"); err == nil && fileResult != nil {
-			return fileResult, out, nil
+			return fileResult, nil, nil
 		}
 		return nil, out, nil
 	})
@@ -723,7 +723,7 @@ func registerTools(server *mcp.Server) {
 		}
 		out := RawOutput{Result: doc}
 		if fileResult, err := largeResultToFile(out, "dom"); err == nil && fileResult != nil {
-			return fileResult, out, nil
+			return fileResult, nil, nil
 		}
 		return nil, out, nil
 	})
@@ -769,7 +769,7 @@ func registerTools(server *mcp.Server) {
 		}
 		out := GetOuterHTMLOutput{OuterHTML: html}
 		if fileResult, err := largeResultToFile(out, "html"); err == nil && fileResult != nil {
-			return fileResult, out, nil
+			return fileResult, nil, nil
 		}
 		return nil, out, nil
 	})
@@ -961,7 +961,7 @@ func registerTools(server *mcp.Server) {
 		}
 		out := RawOutput{Result: nm.GetRequests()}
 		if fileResult, err := largeResultToFile(out, "network"); err == nil && fileResult != nil {
-			return fileResult, out, nil
+			return fileResult, nil, nil
 		}
 		return nil, out, nil
 	})
@@ -979,7 +979,7 @@ func registerTools(server *mcp.Server) {
 		}
 		out := GetResponseBodyOutput{Body: body, Base64Encoded: b64}
 		if fileResult, err := largeResultToFile(out, "response"); err == nil && fileResult != nil {
-			return fileResult, out, nil
+			return fileResult, nil, nil
 		}
 		return nil, out, nil
 	})
@@ -1355,7 +1355,7 @@ func registerTools(server *mcp.Server) {
 		}
 		out := RawOutput{Result: cc.GetMessages()}
 		if fileResult, err := largeResultToFile(out, "console"); err == nil && fileResult != nil {
-			return fileResult, out, nil
+			return fileResult, nil, nil
 		}
 		return nil, out, nil
 	})
@@ -1636,7 +1636,7 @@ func registerTools(server *mcp.Server) {
 		}
 		out := RawOutput{Result: tc.GetEvents()}
 		if fileResult, err := largeResultToFile(out, "timeline"); err == nil && fileResult != nil {
-			return fileResult, out, nil
+			return fileResult, nil, nil
 		}
 		return nil, out, nil
 	})

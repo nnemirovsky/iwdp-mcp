@@ -83,17 +83,20 @@ func (m *NetworkMonitor) Start(ctx context.Context, client *webkit.Client) error
 
 	client.OnEvent("Network.requestWillBeSent", func(method string, params json.RawMessage) {
 		var evt struct {
-			Request webkit.NetworkRequest `json:"request"`
+			RequestID string                `json:"requestId"`
+			Request   webkit.NetworkRequest `json:"request"`
 		}
 		if err := json.Unmarshal(params, &evt); err != nil {
 			return
 		}
+		// requestId is at the top level of the event, not inside request.
+		evt.Request.RequestID = evt.RequestID
 		m.mu.Lock()
 		if len(m.requests) >= maxCollectorEntries {
 			m.mu.Unlock()
 			return
 		}
-		m.requests[evt.Request.RequestID] = &CapturedRequest{
+		m.requests[evt.RequestID] = &CapturedRequest{
 			Request: evt.Request,
 		}
 		m.mu.Unlock()

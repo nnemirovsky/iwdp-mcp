@@ -303,8 +303,8 @@ func TestNetworkMonitor(t *testing.T) {
 
 	// Send a Network.requestWillBeSent event.
 	err := mock.SendEvent("Network.requestWillBeSent", map[string]interface{}{
+		"requestId": "req-1",
 		"request": map[string]interface{}{
-			"requestId": "req-1",
 			"url":       "https://example.com/api",
 			"method":    "GET",
 			"headers":   map[string]string{"Accept": "application/json"},
