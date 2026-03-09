@@ -235,28 +235,84 @@ Go to **Settings → Tools → AI Assistant → Model Context Protocol (MCP) →
 ```
 </details>
 
-### Claude Code Prompts
+### Example Prompts
 
-Once the MCP server is configured, you can ask Claude Code things like:
+Once the MCP server is configured, you can ask your AI assistant things like:
 
+**Getting started**
 ```
-Connect to my iPhone's Safari and show me the page title
-
-List all Safari tabs on my device
-
+Connect to my iPhone's Safari and show me what tabs are open
 Take a screenshot of the current page
+What's the page title and URL?
+```
 
-Show me all cookies including httpOnly ones
+**JavaScript & DOM**
+```
+Run document.querySelectorAll('a') and list all links on the page
+Find all elements with class "error" and show their text content
+Get the full DOM tree of the page
+What event listeners are attached to the submit button?
+Highlight the navigation bar so I can see its bounds
+```
 
-Run document.querySelectorAll('a') and list all links
+**CSS & Styles**
+```
+What CSS rules are applied to the header element?
+Show me the computed styles for the main content area
+Force the :hover state on the dropdown menu
+Change the background color of .hero to #f0f0f0
+List all stylesheets loaded on this page
+```
 
+**Network**
+```
 Monitor network requests while I interact with the page
+Show me the response body of that failed API call
+Intercept all requests to api.example.com and log them
+Block all requests to analytics.google.com
+Set a custom Authorization header for all requests
+Throttle the network to simulate a slow 3G connection
+Disable the browser cache and reload the page
+```
 
-Check what's in localStorage for this site
+**Storage & Cookies**
+```
+Show me all cookies including httpOnly and secure ones
+Set a session cookie named "debug" with value "true"
+Delete the authentication cookie
+What's in localStorage for this site?
+Set a localStorage item "theme" to "dark"
+List all IndexedDB databases and their object stores
+Show me the data in the "users" object store
+```
 
-Find the CSS styles applied to the header element
+**Debugging**
+```
+Set a breakpoint in main.js at line 42
+Pause execution and show me the call stack
+Step through the code and show variable values
+What's the source of the script at bundle.js?
+Search for "addEventListener" across all loaded scripts
+Break on any uncaught exceptions
+Set a DOM breakpoint — break when the #content div is modified
+```
 
-Set a breakpoint in main.js and step through it
+**Performance & Profiling**
+```
+Start a timeline recording while I navigate through the app
+Take a heap snapshot and find potential memory leaks
+Profile the CPU usage while this animation runs
+Track memory usage while I scroll through the feed
+Force a garbage collection
+```
+
+**Advanced**
+```
+List all compositing layers and why they were composited
+Show me all active CSS animations on the page
+Capture the canvas content as an image
+Get the TLS certificate details for this page
+Check if there are any web workers running
 ```
 
 ## How It Works
