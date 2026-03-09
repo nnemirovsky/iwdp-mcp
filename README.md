@@ -1,19 +1,19 @@
 # iwdp-mcp
 
+[![CI](https://github.com/nnemirovsky/iwdp-mcp/actions/workflows/test.yml/badge.svg)](https://github.com/nnemirovsky/iwdp-mcp/actions/workflows/test.yml)
+[![Lint](https://github.com/nnemirovsky/iwdp-mcp/actions/workflows/lint.yml/badge.svg)](https://github.com/nnemirovsky/iwdp-mcp/actions/workflows/lint.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/nnemirovsky/iwdp-mcp)](https://goreportcard.com/report/github.com/nnemirovsky/iwdp-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=iwdp-mcp&config=%7B%22command%22%3A%22iwdp-mcp%22%7D)
+[![Install in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install_Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=iwdp-mcp&config=%7B%22command%22%3A%22iwdp-mcp%22%7D&quality=insiders)
+[![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=iwdp-mcp&config=eyJjb21tYW5kIjoiaXdkcC1tY3AifQ==)
+
 MCP server + CLI for debugging iOS Safari via [ios-webkit-debug-proxy](https://github.com/google/ios-webkit-debug-proxy).
 
 Speaks **WebKit Inspector Protocol** natively — full access to all 27 WebKit Inspector domains, including httpOnly cookies, network interception, heap snapshots, and more.
 
 ## Installation
-
-### Claude Code Plugin (recommended)
-
-Inside Claude Code, run:
-
-```
-/plugin marketplace add nnemirovsky/iwdp-mcp
-/plugin install iwdp-mcp
-```
 
 ### Go Install
 
@@ -75,7 +75,10 @@ iwdp-cli cookies
 
 ### MCP Server
 
-Add to your Claude Code config (`.mcp.json`):
+<details>
+<summary><strong>Claude Desktop</strong></summary>
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
@@ -86,6 +89,48 @@ Add to your Claude Code config (`.mcp.json`):
   }
 }
 ```
+</details>
+
+<details>
+<summary><strong>Claude Code</strong></summary>
+
+Add to your project's `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "iwdp-mcp": {
+      "command": "iwdp-mcp"
+    }
+  }
+}
+```
+
+Or install as a Claude Code plugin:
+
+```
+/plugin marketplace add nnemirovsky/iwdp-mcp
+/plugin install iwdp-mcp
+```
+</details>
+
+<details>
+<summary><strong>VS Code / Cursor</strong></summary>
+
+Add to `.vscode/mcp.json` in your workspace:
+
+```json
+{
+  "servers": {
+    "iwdp-mcp": {
+      "command": "iwdp-mcp"
+    }
+  }
+}
+```
+
+Or click the install badges at the top of this README.
+</details>
 
 ### Claude Code Prompts
 
@@ -132,6 +177,7 @@ Set a breakpoint in main.js and step through it
 ### Core
 | Tool | Description |
 |------|-------------|
+| `iwdp_status` | Check/auto-start ios-webkit-debug-proxy |
 | `list_devices` | List connected iOS devices (HTTP GET :9221) |
 | `list_pages` | List Safari tabs (HTTP GET :9222+) |
 | `select_page` | Connect to a specific tab |
