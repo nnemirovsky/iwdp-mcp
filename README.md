@@ -281,6 +281,7 @@ Set a breakpoint in main.js and step through it
 | Tool | Description |
 |------|-------------|
 | `iwdp_status` | Check/auto-start ios-webkit-debug-proxy |
+| `restart_iwdp` | Restart iwdp after a crash (e.g., heap snapshot) |
 | `list_devices` | List connected iOS devices (HTTP GET :9221) |
 | `list_pages` | List Safari tabs (HTTP GET :9222+) |
 | `select_page` | Connect to a specific tab |

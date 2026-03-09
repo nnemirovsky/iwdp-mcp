@@ -81,8 +81,10 @@ func NewClientWithDialer(ctx context.Context, wsURL string, dialer *websocket.Di
 	return c, nil
 }
 
-// maxReadSize is the maximum WebSocket message size the client will accept (64 MB).
-const maxReadSize = 64 * 1024 * 1024
+// maxReadSize is the maximum WebSocket message size the client will accept (512 MB).
+// Heap snapshots on heavy pages can be 50-200+ MB, and Target-based routing adds
+// ~30% overhead from JSON string escaping, so we need a generous limit.
+const maxReadSize = 512 * 1024 * 1024
 
 func (c *Client) connect(ctx context.Context) error {
 	conn, _, err := c.Dialer.DialContext(ctx, c.url, nil)

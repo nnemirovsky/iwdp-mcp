@@ -3,6 +3,7 @@ package tools_test
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"testing"
 	"time"
 
@@ -481,24 +482,23 @@ func TestHeapSnapshot(t *testing.T) {
 	mock, client := setup(t)
 	mock.HandleFunc("Heap.snapshot", map[string]interface{}{
 		"snapshotData": "snapshot-content",
-		"title":        "Heap Snapshot",
 	})
 
 	ctx := context.Background()
-	result, err := tools.HeapSnapshot(ctx, client)
+	filePath, err := tools.HeapSnapshot(ctx, client)
 	if err != nil {
 		t.Fatalf("HeapSnapshot returned error: %v", err)
 	}
-	if result == nil {
-		t.Fatal("expected non-nil result")
+	if filePath == "" {
+		t.Fatal("expected non-empty file path")
 	}
-	// Verify the raw JSON contains expected data.
-	var parsed map[string]interface{}
-	if err := json.Unmarshal(result, &parsed); err != nil {
-		t.Fatalf("failed to parse result JSON: %v", err)
+	defer func() { _ = os.Remove(filePath) }()
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("failed to read snapshot file: %v", err)
 	}
-	if parsed["title"] != "Heap Snapshot" {
-		t.Errorf("expected title %q, got %v", "Heap Snapshot", parsed["title"])
+	if string(data) != "snapshot-content" {
+		t.Errorf("expected %q, got %q", "snapshot-content", string(data))
 	}
 }
 

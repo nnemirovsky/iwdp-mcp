@@ -41,7 +41,7 @@ func getClient(ctx context.Context) (*webkit.Client, error) {
 func main() {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "iwdp-mcp",
-		Version: "0.2.4",
+		Version: "0.3.0",
 	}, nil)
 
 	registerTools(server)
@@ -481,6 +481,22 @@ func registerTools(server *mcp.Server) {
 			return nil, map[string]any{"running": false, "message": fmt.Sprintf("failed to start iwdp: %v", err)}, nil
 		}
 		return nil, map[string]any{"running": true, "started": true, "message": "ios-webkit-debug-proxy was not running — started it automatically"}, nil
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "restart_iwdp", Description: "Restart ios-webkit-debug-proxy. Use this to recover after a crash (e.g., after a large heap snapshot kills the connection).",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, _ EmptyInput) (*mcp.CallToolResult, any, error) {
+		// Also disconnect any active WebSocket client since the old connection is dead
+		sess.mu.Lock()
+		if sess.client != nil {
+			_ = sess.client.Close()
+			sess.client = nil
+		}
+		sess.mu.Unlock()
+		if err := proxy.Restart(ctx); err != nil {
+			return nil, map[string]any{"restarted": false, "message": fmt.Sprintf("failed to restart iwdp: %v", err)}, nil
+		}
+		return nil, map[string]any{"restarted": true, "message": "ios-webkit-debug-proxy restarted. Use list_devices and select_page to reconnect."}, nil
 	})
 
 	// --- Device/Page management ---
@@ -1532,17 +1548,21 @@ func registerTools(server *mcp.Server) {
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name: "heap_snapshot", Description: "Take a heap snapshot",
+		Name: "heap_snapshot", Description: "Take a heap snapshot and save to file. Warning: can be very large (50-200+ MB) on heavy pages and may take minutes.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ HeapSnapshotInput) (*mcp.CallToolResult, any, error) {
 		c, err := getClient(ctx)
 		if err != nil {
-			return nil, RawOutput{}, err
+			return nil, TextOutput{}, err
 		}
-		result, err := tools.HeapSnapshot(ctx, c)
+		filePath, err := tools.HeapSnapshot(ctx, c)
 		if err != nil {
-			return nil, RawOutput{}, err
+			return nil, TextOutput{}, err
 		}
-		return nil, RawOutput{Result: result}, nil
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{
+				Text: fmt.Sprintf("Heap snapshot saved to %s — use the Read tool to view it.", filePath),
+			}},
+		}, TextOutput{Text: filePath}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{

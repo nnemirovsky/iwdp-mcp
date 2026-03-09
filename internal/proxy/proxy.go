@@ -59,10 +59,20 @@ func Start(ctx context.Context) error {
 }
 
 // EnsureRunning checks if iwdp is running and starts it if not.
+// If iwdp crashed (e.g., after a large heap snapshot), this will restart it.
 func EnsureRunning(ctx context.Context) error {
 	if IsRunning() {
 		return nil
 	}
+	return Start(ctx)
+}
+
+// Restart kills any existing iwdp process and starts a fresh one.
+// Use this when iwdp is in a bad state (e.g., after a WebSocket crash).
+func Restart(ctx context.Context) error {
+	// Best-effort kill — ignore errors if not running
+	_ = exec.Command("pkill", "-f", "ios_webkit_debug_proxy").Run()
+	time.Sleep(500 * time.Millisecond)
 	return Start(ctx)
 }
 
