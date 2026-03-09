@@ -1,7 +1,7 @@
 # Binaries
 bin/
-./iwdp-mcp
-./iwdp-cli
+/iwdp-mcp
+/iwdp-cli
 
 # Coverage
 coverage.out
