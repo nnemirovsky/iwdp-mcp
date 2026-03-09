@@ -163,7 +163,6 @@ func GetIndexedDBData(ctx context.Context, client *webkit.Client, securityOrigin
 		"indexName":       "",
 		"skipCount":       skipCount,
 		"pageSize":        pageSize,
-		"keyRange":        nil,
 	})
 	if err != nil {
 		return nil, err

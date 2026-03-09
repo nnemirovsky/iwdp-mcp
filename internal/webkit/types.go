@@ -234,7 +234,7 @@ type Cookie struct {
 	HTTPOnly bool    `json:"httpOnly"`
 	Secure   bool    `json:"secure"`
 	Session  bool    `json:"session"`
-	SameSite string  `json:"sameSite,omitempty"`
+	SameSite string  `json:"sameSite"`
 }
 
 // --- DOMStorage types ---

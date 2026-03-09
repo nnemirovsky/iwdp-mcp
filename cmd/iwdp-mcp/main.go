@@ -58,7 +58,7 @@ func lookupInterceptStage(requestID string) string {
 func main() {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "iwdp-mcp",
-		Version: "0.3.4",
+		Version: "0.3.5",
 	}, nil)
 
 	registerTools(server)
@@ -247,12 +247,14 @@ type SetResourceCachingDisabledInput struct {
 type (
 	GetCookiesInput struct{}
 	SetCookieInput  struct {
-		Name     string `json:"name"`
-		Value    string `json:"value"`
-		Domain   string `json:"domain,omitempty"`
-		Path     string `json:"path,omitempty"`
-		Secure   bool   `json:"secure,omitempty"`
-		HTTPOnly bool   `json:"http_only,omitempty"`
+		Name     string  `json:"name"`
+		Value    string  `json:"value"`
+		Domain   string  `json:"domain,omitempty"`
+		Path     string  `json:"path,omitempty"`
+		Expires  float64 `json:"expires,omitempty" jsonschema:"expiry as Unix timestamp in seconds (0 or omit for session cookie)"`
+		Secure   bool    `json:"secure,omitempty"`
+		HTTPOnly bool    `json:"http_only,omitempty"`
+		SameSite string  `json:"same_site,omitempty" jsonschema:"cookie SameSite attribute: None, Lax, or Strict (default: Lax)"`
 	}
 )
 
@@ -1159,13 +1161,20 @@ func registerTools(server *mcp.Server) {
 		if err != nil {
 			return nil, OKOutput{}, err
 		}
+		sameSite := input.SameSite
+		if sameSite == "" {
+			sameSite = "Lax"
+		}
 		cookie := webkit.Cookie{
 			Name:     input.Name,
 			Value:    input.Value,
 			Domain:   input.Domain,
 			Path:     input.Path,
+			Expires:  input.Expires,
+			Session:  input.Expires == 0,
 			Secure:   input.Secure,
 			HTTPOnly: input.HTTPOnly,
+			SameSite: sameSite,
 		}
 		return nil, ok(), tools.SetCookie(ctx, c, cookie)
 	})
