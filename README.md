@@ -14,11 +14,32 @@
 [![Install in Antigravity](https://img.shields.io/badge/Antigravity-Install_Server-4285F4?style=flat-square&logo=google&logoColor=white)](#antigravity)
 [![Install in JetBrains](https://img.shields.io/badge/JetBrains-Install_Server-000000?style=flat-square&logo=jetbrains&logoColor=white)](#jetbrains-ides)
 
-MCP server + CLI for debugging iOS Safari via [ios-webkit-debug-proxy](https://github.com/google/ios-webkit-debug-proxy).
+**Debug iOS Safari from your AI agent.** No existing tool lets AI assistants interact with Safari on a real iPhone. Chrome DevTools MCP speaks CDP, which is incompatible with WebKit. This project bridges that gap.
 
-Speaks **WebKit Inspector Protocol** natively — full access to all 27 WebKit Inspector domains, including httpOnly cookies, network interception, heap snapshots, and more.
+<video src="demo.mp4" autoplay loop muted playsinline></video>
+
+100+ tools across all 27 WebKit Inspector Protocol domains — navigation, screenshots, DOM inspection, CSS, network interception, httpOnly cookies, JS debugging, heap snapshots, profiling, and more.
+
+## Why?
+
+- **Chrome DevTools MCP** exists for Chrome/Chromium. **Nothing existed for Safari** — until now.
+- **httpOnly cookies** are invisible to `document.cookie`. This tool reads them via the protocol.
+- **Real device testing** catches iOS-specific bugs that simulators miss.
+- Works with **Claude Code, VS Code, Cursor, Windsurf, Codex CLI, Antigravity, JetBrains**, and any MCP-compatible client.
 
 ## Installation
+
+### Prerequisites
+
+```bash
+# Install ios-webkit-debug-proxy (macOS)
+brew install ios-webkit-debug-proxy
+
+# Connect an iOS device via USB and enable Web Inspector:
+# Settings → Safari → Advanced → Web Inspector → ON
+```
+
+For Linux and other platforms, see the [ios-webkit-debug-proxy installation guide](https://github.com/google/ios-webkit-debug-proxy#installation).
 
 ### Claude Code Plugin (recommended)
 
@@ -32,16 +53,12 @@ Inside Claude Code, run:
 ### Go Install
 
 ```bash
-# Install both binaries
 go install github.com/nnemirovsky/iwdp-mcp/cmd/...@latest
 ```
 
 ### Pre-built Binaries
 
-```bash
-# Or download a pre-built binary from GitHub Releases
-# https://github.com/nnemirovsky/iwdp-mcp/releases
-```
+Download from [GitHub Releases](https://github.com/nnemirovsky/iwdp-mcp/releases).
 
 ### Build from Source
 
@@ -50,18 +67,6 @@ git clone https://github.com/nnemirovsky/iwdp-mcp.git
 cd iwdp-mcp
 make build
 ```
-
-### Prerequisites
-
-```bash
-# Install ios-webkit-debug-proxy (macOS)
-brew install ios-webkit-debug-proxy
-
-# Connect an iOS device via USB and enable Web Inspector:
-# Settings → Safari → Advanced → Web Inspector → ON
-```
-
-For Linux and other platforms, see the [ios-webkit-debug-proxy installation guide](https://github.com/google/ios-webkit-debug-proxy#installation).
 
 ## Quick Start
 
