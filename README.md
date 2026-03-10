@@ -16,7 +16,7 @@
 
 **Debug iOS Safari from your AI agent.** No existing tool lets AI assistants interact with Safari on a real iPhone. Chrome DevTools MCP speaks CDP, which is incompatible with WebKit. This project bridges that gap.
 
-<video src="demo.mp4" autoplay loop muted playsinline></video>
+<video src="https://github.com/user-attachments/assets/dcc0dc05-3a1f-4454-88a8-51ee28da9fd2" autoplay loop muted playsinline></video>
 
 100+ tools across all 27 WebKit Inspector Protocol domains — navigation, screenshots, DOM inspection, CSS, network interception, httpOnly cookies, JS debugging, heap snapshots, profiling, and more.
 
