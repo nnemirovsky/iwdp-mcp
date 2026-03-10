@@ -16,13 +16,13 @@
 
 **Debug iOS Safari from your AI agent.** No existing tool lets AI assistants interact with Safari on a real iPhone. Chrome DevTools MCP speaks CDP, which is incompatible with WebKit. This project bridges that gap.
 
-<video src="https://github.com/user-attachments/assets/dcc0dc05-3a1f-4454-88a8-51ee28da9fd2" autoplay loop muted playsinline></video>
+<video src="https://github.com/user-attachments/assets/dcc0dc05-3a1f-4454-88a8-51ee28da9fd2" poster="https://github.com/user-attachments/assets/3901f7ff-6531-4866-b49e-cf5d17304327" autoplay loop muted playsinline></video>
 
 100+ tools across all 27 WebKit Inspector Protocol domains — navigation, screenshots, DOM inspection, CSS, network interception, httpOnly cookies, JS debugging, heap snapshots, profiling, and more.
 
 ## Why?
 
-- **Chrome DevTools MCP** exists for Chrome/Chromium. **Nothing existed for Safari** — until now.
+- **Chrome DevTools MCP** exists for desktop Chrome. **Nothing existed for iOS Safari** — until now.
 - **httpOnly cookies** are invisible to `document.cookie`. This tool reads them via the protocol.
 - **Real device testing** catches iOS-specific bugs that simulators miss.
 - Works with **Claude Code, VS Code, Cursor, Windsurf, Codex CLI, Antigravity, JetBrains**, and any MCP-compatible client.
