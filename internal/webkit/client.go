@@ -109,6 +109,13 @@ func (c *Client) Close() error {
 	return err
 }
 
+// IsTargetRouted returns true if this connection uses iwdp Target-based routing.
+func (c *Client) IsTargetRouted() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.targetID != ""
+}
+
 // Send sends a method call and waits for the response.
 // If Target routing is active, the message is automatically wrapped.
 func (c *Client) Send(ctx context.Context, method string, params interface{}) (json.RawMessage, error) {

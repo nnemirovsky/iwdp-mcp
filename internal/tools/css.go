@@ -74,8 +74,18 @@ func SetStyleText(ctx context.Context, client *webkit.Client, styleID json.RawMe
 	return resp.Style, nil
 }
 
+// errCSSNotSupported is returned when CSS.enable/CSS.getAllStyleSheets/CSS.getStyleSheetText
+// are called through iwdp Target routing, which hangs and corrupts the connection pipeline.
+var errCSSNotSupported = fmt.Errorf("CSS.enable/CSS.getAllStyleSheets/CSS.getStyleSheetText do not work through ios-webkit-debug-proxy Target routing (the commands hang without a response, breaking subsequent commands on the same connection)")
+
 // GetAllStylesheets returns all stylesheets known to the page.
+// Note: this requires CSS.enable which does not work through iwdp Target routing.
+// When connected via iwdp, returns an error immediately to avoid hanging the connection.
 func GetAllStylesheets(ctx context.Context, client *webkit.Client) ([]webkit.CSSStyleSheet, error) {
+	if client.IsTargetRouted() {
+		return nil, errCSSNotSupported
+	}
+
 	result, err := client.Send(ctx, "CSS.getAllStyleSheets", nil)
 	if err != nil {
 		return nil, err
@@ -91,7 +101,13 @@ func GetAllStylesheets(ctx context.Context, client *webkit.Client) ([]webkit.CSS
 }
 
 // GetStylesheetText returns the text content of a stylesheet.
+// Note: this requires CSS.enable which does not work through iwdp Target routing.
+// When connected via iwdp, returns an error immediately to avoid hanging the connection.
 func GetStylesheetText(ctx context.Context, client *webkit.Client, styleSheetID string) (string, error) {
+	if client.IsTargetRouted() {
+		return "", errCSSNotSupported
+	}
+
 	result, err := client.Send(ctx, "CSS.getStyleSheetText", map[string]interface{}{
 		"styleSheetId": styleSheetID,
 	})

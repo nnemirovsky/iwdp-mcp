@@ -50,11 +50,11 @@ iwdp → Client
 
 ### Domain Enable/Disable Through Target Routing
 
-Many `<Domain>.enable`/`<Domain>.disable` methods (DOM.enable, CSS.enable) return "not found" through iwdp Target routing. However, the actual domain methods (DOM.getDocument, CSS.getMatchedStylesForNode, Runtime.evaluate) work without explicit enabling. Don't require `.enable` calls as a prerequisite.
+Some `<Domain>.enable` methods work through iwdp Target routing (e.g., `Debugger.enable`, `Canvas.enable`, `Worker.enable`, `Animation.enable`). Others like `CSS.enable` hang without a response. Most actual domain methods (DOM.getDocument, CSS.getMatchedStylesForNode, CSS.getComputedStyleForNode, CSS.setStyleText, Runtime.evaluate) work without explicit enabling.
 
 ### Known Limitations
 
-- `CSS.getAllStyleSheets` — exists in the WebKit protocol spec but requires `CSS.enable` first, which doesn't work through iwdp Target routing. Skipped in tests.
+- `CSS.enable`, `CSS.getAllStyleSheets`, `CSS.getStyleSheetText` hang through iwdp Target routing. The command is sent but no response comes back, and the hang corrupts the connection pipeline (all subsequent commands on the same connection will also hang). The tool implementations detect Target routing and return an error immediately instead.
 - `Page.snapshotRect` requires explicit pixel dimensions — compute them first via `Runtime.evaluate` (see `TakeScreenshot` in page.go).
 - Only **one WebSocket debugger connection per page** — simulator tests use a `sync.Once` shared connection pattern.
 - iwdp sends error `data` as a JSON array `[{"code":...,"message":...}]` — `ErrorData.Data` is `json.RawMessage` to handle this.
@@ -93,7 +93,7 @@ Two binaries, one shared `internal/` package tree:
 - gorilla/websocket is not concurrent-write-safe — `Client.writeMu` mutex protects `conn.WriteMessage`
 - E2E simulator tests share a single WebSocket connection via `sync.Once` (`getSimClient` in `e2e/sim_helpers_test.go`) — never create multiple connections to the same page
 - Use `simOrigin()` helper to get the page's actual origin for storage tests — never hardcode origins
-- Almost never use `t.Skipf`/`t.Skip`. Use `t.Fatalf`/`t.Fatal` instead. Only skip when a feature is specifically proven unsupported (e.g., `CSS.getAllStyleSheets` through iwdp Target routing). The env-var check in `getSimClient` is the only legitimate `t.Skip` in e2e tests.
+- Almost never use `t.Skipf`/`t.Skip`. Use `t.Fatalf`/`t.Fatal` instead. The env-var check in `getSimClient` is the only legitimate `t.Skip` in e2e tests.
 
 ## Git Conventions
 
