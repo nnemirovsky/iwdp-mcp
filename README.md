@@ -18,7 +18,7 @@
 
 <video src="https://github.com/user-attachments/assets/dcc0dc05-3a1f-4454-88a8-51ee28da9fd2" poster="https://github.com/user-attachments/assets/3901f7ff-6531-4866-b49e-cf5d17304327" autoplay loop muted playsinline></video>
 
-100+ tools across all 27 WebKit Inspector Protocol domains — navigation, screenshots, DOM inspection, CSS, network interception, httpOnly cookies, JS debugging, heap snapshots, profiling, and more.
+100+ tools across all 27 WebKit Inspector Protocol domains — navigation, screenshots, DOM inspection, CSS, network interception, httpOnly cookies, JS debugging, heap snapshots, profiling, and more. Full feature parity between MCP server and CLI.
 
 ## Why?
 
@@ -374,7 +374,8 @@ Animation, Canvas, LayerTree, Workers, Audit, Security (TLS certificates), and e
 
 ```bash
 make build              # Build both binaries
-make test               # Run all tests
+make test               # Run unit + smoke tests
+make test-e2e           # E2E tests (boots iOS Simulator, tests all tools)
 make test-coverage      # Tests with coverage report
 make lint               # golangci-lint
 make fmt                # gofumpt formatting
@@ -382,38 +383,23 @@ make fmt                # gofumpt formatting
 
 ### Testing
 
-Unit tests use a mock WebSocket server (`internal/webkit/testutil/`) that simulates the WebKit Inspector Protocol.
+Unit tests use a mock WebSocket server (`internal/webkit/testutil/`) that simulates the WebKit Inspector Protocol. E2E tests boot an iOS Simulator and run every tool against real Safari.
 
 ```bash
-# Unit tests (no device needed)
+# Unit + smoke tests (no device needed)
 make test
 
-# E2E tests (builds binaries, tests CLI + MCP server JSON-RPC)
+# E2E tests — boots iOS Simulator + iwdp, tests ALL tools against real Safari
 make test-e2e
-
-# Integration tests (requires iwdp binary installed)
-make test-integration
-
-# Simulator tests — boots iOS Simulator + iwdp, tests ALL tools against real Safari
-make test-simulator
-```
-
-#### iOS Simulator Tests
-
-Simulator tests (`-tags=simulator`) boot an iOS Simulator, start `ios_webkit_debug_proxy` with the simulator's web inspector socket, and run every tool against a real Safari page. No physical device needed.
-
-```bash
-# One-command: setup → test → teardown
-make test-simulator
 
 # Or manually for debugging:
 make sim-setup          # Prints IWDP_SIM_WS_URL
 export IWDP_SIM_WS_URL=ws://localhost:9222/devtools/page/1
-go test -tags=simulator ./... -v -run TestSim_Navigate
+go test -tags=simulator ./e2e/ -v -run TestSim_Navigate
 make sim-teardown
 ```
 
-> **Note:** Requires macOS with Xcode and `ios-webkit-debug-proxy` installed. GitHub Actions `macos-latest` runners have Xcode and iOS Simulator runtimes pre-installed.
+> **Note:** E2E tests require macOS with Xcode and `ios-webkit-debug-proxy` installed. GitHub Actions `macos-latest` runners have Xcode and iOS Simulator runtimes pre-installed.
 
 ### Project Structure
 

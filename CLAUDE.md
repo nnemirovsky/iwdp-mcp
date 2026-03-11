@@ -8,11 +8,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 go build ./...                    # Compile (quick check)
 make build                        # Compile to bin/iwdp-mcp + bin/iwdp-cli
 make install                      # Install both binaries via go install
-make test                         # Run all tests (go test ./... -v -count=1)
-make test-e2e                     # Run e2e tests (builds binaries, tests CLI + MCP server)
+make test                         # Run unit + smoke tests (go test ./... -v -count=1)
+make test-e2e                     # Run e2e tests (boots iOS Sim + iwdp, tests ALL tools)
 make test-coverage                # Run tests with coverage → coverage.html
-make test-integration             # Run integration tests (requires iwdp binary installed)
-make test-simulator               # Run simulator tests (boots iOS Sim + iwdp, tests all tools)
 make sim-setup                    # Boot iOS Simulator + iwdp (prints IWDP_SIM_WS_URL)
 make sim-teardown                 # Shut down simulator + iwdp
 make fmt                          # gofumpt -w . (format all Go files)
@@ -89,15 +87,13 @@ Two binaries, one shared `internal/` package tree:
 - All WebKit protocol communication goes through `webkit.Client`
 - Tools return structured results; formatting is done by the caller (MCP or CLI)
 - Unit tests use mock WebSocket server from `internal/webkit/testutil/`
-- E2E tests in `e2e/` build actual binaries and test CLI help/error paths + MCP server JSON-RPC initialization
-- Integration tests (`-tags=integration`) use the real `ios_webkit_debug_proxy` binary
-- Simulator tests (`-tags=simulator`) boot iOS Simulator + iwdp and test all tools against real Safari
+- E2E tests in `e2e/` cover CLI binary smoke tests, MCP server JSON-RPC, and simulator-based tool tests (`-tags=simulator`) that test ALL tools against real Safari via iOS Simulator + iwdp
 - Error messages should be actionable (tell the user what to do)
 - Network/Console/Timeline use collector patterns: `Start()` registers event handlers, `Get*()` returns collected data
 - gorilla/websocket is not concurrent-write-safe — `Client.writeMu` mutex protects `conn.WriteMessage`
-- Simulator tests share a single WebSocket connection via `sync.Once` (`getSimClient`) — never create multiple connections to the same page
+- E2E simulator tests share a single WebSocket connection via `sync.Once` (`getSimClient` in `e2e/sim_helpers_test.go`) — never create multiple connections to the same page
 - Use `simOrigin()` helper to get the page's actual origin for storage tests — never hardcode origins
-- Use `t.Skipf` (not `t.Fatalf`) for features that may not be supported in all WebKit versions
+- Almost never use `t.Skipf`/`t.Skip`. Use `t.Fatalf`/`t.Fatal` instead. Only skip when a feature is specifically proven unsupported (e.g., `CSS.getAllStyleSheets` through iwdp Target routing). The env-var check in `getSimClient` is the only legitimate `t.Skip` in e2e tests.
 
 ## Git Conventions
 

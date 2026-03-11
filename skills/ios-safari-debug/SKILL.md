@@ -84,12 +84,96 @@ View all cookies including httpOnly ones that JavaScript cannot access:
 4. take_screenshot to verify the result
 ```
 
+## CLI Tool (iwdp-cli)
+
+**Use MCP tools by default.** Only use the CLI when the user explicitly requests it.
+
+The `iwdp-cli` binary provides the same capabilities as the MCP tools but from the command line. Install it with `go install github.com/nnemirovsky/iwdp-mcp/cmd/iwdp-cli@latest`.
+
+### Usage Pattern
+
+```bash
+iwdp-cli <command> [args...] [ws-url]
+```
+
+The `ws-url` argument (WebSocket URL from `iwdp-cli pages`) is always optional and placed last. If omitted, the CLI auto-connects to the first available page.
+
+### Core Commands
+
+```bash
+iwdp-cli devices                    # List connected iOS devices
+iwdp-cli pages [port]               # List Safari tabs (default port: 9222)
+iwdp-cli status                     # Check if iwdp is running
+iwdp-cli eval "document.title"      # Evaluate JavaScript
+iwdp-cli navigate "https://..."     # Navigate to URL
+iwdp-cli reload [--ignore-cache]    # Reload page
+iwdp-cli screenshot [-o file.png]   # Take screenshot
+iwdp-cli cookies                    # Show all cookies (incl. httpOnly)
+iwdp-cli dom [selector]             # Inspect DOM tree or element
+iwdp-cli console                    # Stream console messages (Ctrl+C)
+iwdp-cli network                    # Stream network requests (Ctrl+C)
+```
+
+### DOM & CSS
+
+```bash
+iwdp-cli query-selector-all "div.item"     # Find all matching elements
+iwdp-cli get-attributes 5                   # Get node attributes
+iwdp-cli get-computed-style 5               # Get computed style
+iwdp-cli get-matched-styles 5               # Get matching CSS rules
+iwdp-cli highlight-node 5                   # Highlight element in browser
+```
+
+### Interaction
+
+```bash
+iwdp-cli click "#submit-btn"              # Click element
+iwdp-cli fill "#email" "user@example.com" # Fill input
+iwdp-cli type-text "hello"                # Type into focused element
+```
+
+### Storage
+
+```bash
+iwdp-cli set-cookie name val .example.com  # Set cookie
+iwdp-cli delete-cookie name "https://..."  # Delete cookie
+iwdp-cli get-local-storage "https://..."   # Get localStorage
+iwdp-cli get-session-storage "https://..." # Get sessionStorage
+```
+
+### Debugger
+
+```bash
+iwdp-cli debugger-enable
+iwdp-cli set-breakpoint "app.js" 42
+iwdp-cli pause / resume / step-over / step-into / step-out
+iwdp-cli get-script-source "1"
+iwdp-cli eval-on-frame "0" "myVar"
+```
+
+### Performance & Profiling
+
+Duration-based commands collect for 3 seconds by default. Use `-d N` to change.
+
+```bash
+iwdp-cli timeline-record [-d 5]    # Record timeline events
+iwdp-cli memory-track [-d 5]       # Track memory usage
+iwdp-cli heap-snapshot              # Take heap snapshot
+iwdp-cli heap-gc                    # Force garbage collection
+iwdp-cli cpu-profile [-d 5]        # CPU profiling
+iwdp-cli script-profile [-d 5]     # Script execution profiling
+```
+
+### Full Command List
+
+Run `iwdp-cli help` to see all 90+ commands organized by category.
+
 ## Tips
 
-- Use `list_devices` first if you have multiple iOS devices connected — it shows port assignments.
+- Use `list_devices` first if you have multiple iOS devices connected. It shows port assignments.
 - `list_pages` defaults to port 9222 (first device). Pass the port from `list_devices` for other devices.
 - `get_cookies` returns httpOnly and secure cookies that `document.cookie` cannot access.
-- Network/console monitoring only captures events while active — enable before triggering traffic.
-- `evaluate_script` runs arbitrary JS in the page context — use it for anything the specialized tools don't cover.
-- Screenshots are saved as PNG files — use the Read tool to view the returned file path.
+- Network/console monitoring only captures events while active. Enable before triggering traffic.
+- `evaluate_script` runs arbitrary JS in the page context. Use it for anything the specialized tools don't cover.
+- Screenshots are saved as PNG files. Use the Read tool to view the returned file path.
 - Large results (DOM trees, network logs, JS output) are automatically saved to temp files when they exceed the inline size limit.

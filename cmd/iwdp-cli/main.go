@@ -25,16 +25,25 @@ func main() {
 	args := os.Args[2:]
 
 	switch cmd {
+	// Core
 	case "devices":
 		cmdDevices(ctx)
 	case "pages":
 		cmdPages(ctx, args)
+	case "status":
+		cmdStatus(ctx)
+	case "restart-iwdp":
+		cmdRestartIWDP(ctx)
 	case "eval":
 		cmdEval(ctx, args)
 	case "navigate":
 		cmdNavigate(ctx, args)
+	case "reload":
+		cmdReload(ctx, args)
 	case "screenshot":
 		cmdScreenshot(ctx, args)
+	case "snapshot-node":
+		cmdSnapshotNode(ctx, args)
 	case "cookies":
 		cmdCookies(ctx, args)
 	case "dom":
@@ -43,6 +52,217 @@ func main() {
 		cmdConsole(ctx, args)
 	case "network":
 		cmdNetwork(ctx, args)
+
+	// Runtime
+	case "call-function":
+		cmdCallFunction(ctx, args)
+	case "get-properties":
+		cmdGetProperties(ctx, args)
+
+	// DOM
+	case "query-selector":
+		cmdQuerySelector(ctx, args)
+	case "query-selector-all":
+		cmdQuerySelectorAll(ctx, args)
+	case "get-outer-html":
+		cmdGetOuterHTML(ctx, args)
+	case "get-attributes":
+		cmdGetAttributes(ctx, args)
+	case "get-event-listeners":
+		cmdGetEventListeners(ctx, args)
+	case "highlight-node":
+		cmdHighlightNode(ctx, args)
+	case "hide-highlight":
+		cmdHideHighlight(ctx, args)
+
+	// CSS
+	case "get-matched-styles":
+		cmdGetMatchedStyles(ctx, args)
+	case "get-computed-style":
+		cmdGetComputedStyle(ctx, args)
+	case "get-inline-styles":
+		cmdGetInlineStyles(ctx, args)
+	case "set-style-text":
+		cmdSetStyleText(ctx, args)
+	case "get-all-stylesheets":
+		cmdGetAllStylesheets(ctx, args)
+	case "get-stylesheet-text":
+		cmdGetStylesheetText(ctx, args)
+	case "force-pseudo-state":
+		cmdForcePseudoState(ctx, args)
+
+	// Interaction
+	case "click":
+		cmdClick(ctx, args)
+	case "fill":
+		cmdFill(ctx, args)
+	case "type-text":
+		cmdTypeText(ctx, args)
+
+	// Storage
+	case "set-cookie":
+		cmdSetCookie(ctx, args)
+	case "delete-cookie":
+		cmdDeleteCookie(ctx, args)
+	case "get-local-storage":
+		cmdGetLocalStorage(ctx, args)
+	case "set-local-storage-item":
+		cmdSetLocalStorageItem(ctx, args)
+	case "remove-local-storage-item":
+		cmdRemoveLocalStorageItem(ctx, args)
+	case "clear-local-storage":
+		cmdClearLocalStorage(ctx, args)
+	case "get-session-storage":
+		cmdGetSessionStorage(ctx, args)
+	case "set-session-storage-item":
+		cmdSetSessionStorageItem(ctx, args)
+	case "remove-session-storage-item":
+		cmdRemoveSessionStorageItem(ctx, args)
+	case "clear-session-storage":
+		cmdClearSessionStorage(ctx, args)
+	case "list-indexed-databases":
+		cmdListIndexedDatabases(ctx, args)
+	case "get-indexed-db-data":
+		cmdGetIndexedDBData(ctx, args)
+	case "clear-indexed-db-store":
+		cmdClearIndexedDBStore(ctx, args)
+
+	// Network (extended)
+	case "get-response-body":
+		cmdGetResponseBody(ctx, args)
+	case "set-extra-headers":
+		cmdSetExtraHeaders(ctx, args)
+	case "set-request-interception":
+		cmdSetRequestInterception(ctx, args)
+	case "intercept-continue":
+		cmdInterceptContinue(ctx, args)
+	case "intercept-respond":
+		cmdInterceptWithResponse(ctx, args)
+	case "set-network-conditions":
+		cmdSetEmulatedConditions(ctx, args)
+	case "disable-cache":
+		cmdSetResourceCachingDisabled(ctx, args)
+
+	// Console (extended)
+	case "console-messages":
+		cmdConsoleMessages(ctx, args)
+	case "clear-console":
+		cmdClearConsole(ctx, args)
+	case "set-log-level":
+		cmdSetLogLevel(ctx, args)
+
+	// Debugger
+	case "debugger-enable":
+		cmdDebuggerEnable(ctx, args)
+	case "debugger-disable":
+		cmdDebuggerDisable(ctx, args)
+	case "set-breakpoint":
+		cmdSetBreakpoint(ctx, args)
+	case "remove-breakpoint":
+		cmdRemoveBreakpoint(ctx, args)
+	case "pause":
+		cmdPause(ctx, args)
+	case "resume":
+		cmdResume(ctx, args)
+	case "step-over":
+		cmdStepOver(ctx, args)
+	case "step-into":
+		cmdStepInto(ctx, args)
+	case "step-out":
+		cmdStepOut(ctx, args)
+	case "get-script-source":
+		cmdGetScriptSource(ctx, args)
+	case "search-in-content":
+		cmdSearchInContent(ctx, args)
+	case "eval-on-frame":
+		cmdEvalOnFrame(ctx, args)
+	case "set-pause-on-exceptions":
+		cmdSetPauseOnExceptions(ctx, args)
+
+	// DOMDebugger
+	case "set-dom-breakpoint":
+		cmdSetDOMBreakpoint(ctx, args)
+	case "remove-dom-breakpoint":
+		cmdRemoveDOMBreakpoint(ctx, args)
+	case "set-event-breakpoint":
+		cmdSetEventBreakpoint(ctx, args)
+	case "remove-event-breakpoint":
+		cmdRemoveEventBreakpoint(ctx, args)
+	case "set-url-breakpoint":
+		cmdSetURLBreakpoint(ctx, args)
+	case "remove-url-breakpoint":
+		cmdRemoveURLBreakpoint(ctx, args)
+
+	// Performance & Profiling
+	case "timeline-record":
+		cmdTimelineRecord(ctx, args)
+	case "memory-track":
+		cmdMemoryTrack(ctx, args)
+	case "heap-snapshot":
+		cmdHeapSnapshot(ctx, args)
+	case "heap-track":
+		cmdHeapTrack(ctx, args)
+	case "heap-gc":
+		cmdHeapGC(ctx, args)
+	case "cpu-profile":
+		cmdCPUProfile(ctx, args)
+	case "script-profile":
+		cmdScriptProfile(ctx, args)
+
+	// Animation
+	case "animation-enable":
+		cmdAnimationEnable(ctx, args)
+	case "animation-disable":
+		cmdAnimationDisable(ctx, args)
+	case "animation-track":
+		cmdAnimationTrack(ctx, args)
+	case "get-animation-effect":
+		cmdGetAnimationEffect(ctx, args)
+	case "resolve-animation":
+		cmdResolveAnimation(ctx, args)
+
+	// Canvas
+	case "canvas-enable":
+		cmdCanvasEnable(ctx, args)
+	case "canvas-disable":
+		cmdCanvasDisable(ctx, args)
+	case "get-canvas-content":
+		cmdGetCanvasContent(ctx, args)
+	case "start-canvas-recording":
+		cmdStartCanvasRecording(ctx, args)
+	case "stop-canvas-recording":
+		cmdStopCanvasRecording(ctx, args)
+	case "get-shader-source":
+		cmdGetShaderSource(ctx, args)
+
+	// LayerTree
+	case "get-layer-tree":
+		cmdGetLayerTree(ctx, args)
+	case "get-compositing-reasons":
+		cmdGetCompositingReasons(ctx, args)
+
+	// Workers
+	case "worker-enable":
+		cmdWorkerEnable(ctx, args)
+	case "worker-disable":
+		cmdWorkerDisable(ctx, args)
+	case "send-to-worker":
+		cmdSendToWorker(ctx, args)
+	case "get-service-worker-info":
+		cmdGetServiceWorkerInfo(ctx, args)
+
+	// Audit & Security
+	case "run-audit":
+		cmdRunAudit(ctx, args)
+	case "get-certificate-info":
+		cmdGetCertificateInfo(ctx, args)
+
+	// Browser
+	case "browser-extensions-enable":
+		cmdBrowserExtensionsEnable(ctx, args)
+	case "browser-extensions-disable":
+		cmdBrowserExtensionsDisable(ctx, args)
+
 	case "help", "--help", "-h":
 		printUsage()
 	default:
@@ -57,24 +277,147 @@ func printUsage() {
 
 Usage: iwdp-cli <command> [options]
 
-Commands:
-  devices                     List connected iOS devices (via iwdp port 9221)
-  pages [port]                List open Safari tabs on a device port
-                              (default: 9222 = first device; use 'devices' to find ports)
-  eval <expression> [ws-url]  Evaluate JavaScript
-  navigate <url> [ws-url]     Navigate to URL
-  screenshot [-o file] [ws-url]  Take screenshot
-  cookies [ws-url]            Show all cookies (incl. httpOnly)
-  dom [selector] [ws-url]     Inspect DOM
-  console [ws-url]            Show console messages
-  network [ws-url]            Show network requests
+Core:
+  devices                          List connected iOS devices
+  pages [port]                     List open Safari tabs (default port: 9222)
+  status                           Check if ios_webkit_debug_proxy is running
+  restart-iwdp                     Restart ios_webkit_debug_proxy
+  eval <expr> [ws-url]             Evaluate JavaScript
+  navigate <url> [ws-url]          Navigate to URL
+  reload [--ignore-cache] [ws-url] Reload page
+  screenshot [-o file] [ws-url]    Take screenshot
+  snapshot-node <nodeId> [-o file]  Snapshot a DOM node
+  cookies [ws-url]                 Show all cookies (incl. httpOnly)
+  dom [selector] [ws-url]          Inspect DOM tree or element
+  console [ws-url]                 Stream console messages (Ctrl+C to stop)
+  network [ws-url]                 Stream network requests (Ctrl+C to stop)
+
+Runtime:
+  call-function <objectId> <func> [ws-url]   Call function on object
+  get-properties <objectId> [ws-url]         Get object properties
+
+DOM:
+  query-selector <selector> [ws-url]         Find first matching element
+  query-selector-all <selector> [ws-url]     Find all matching elements
+  get-outer-html <nodeId> [ws-url]           Get element outer HTML
+  get-attributes <nodeId> [ws-url]           Get element attributes
+  get-event-listeners <nodeId> [ws-url]      Get event listeners
+  highlight-node <nodeId> [ws-url]           Highlight element in browser
+  hide-highlight [ws-url]                    Hide highlight overlay
+
+CSS:
+  get-matched-styles <nodeId> [ws-url]       Get matching CSS rules
+  get-computed-style <nodeId> [ws-url]       Get computed style
+  get-inline-styles <nodeId> [ws-url]        Get inline styles
+  set-style-text <styleId> <text> [ws-url]   Modify style declaration
+  get-all-stylesheets [ws-url]               List all stylesheets
+  get-stylesheet-text <id> [ws-url]          Get stylesheet source
+  force-pseudo-state <nodeId> <states>       Force :hover,:focus etc.
+
+Interaction:
+  click <selector> [ws-url]                  Click element
+  fill <selector> <value> [ws-url]           Fill input field
+  type-text <text> [ws-url]                  Type text into focused element
+
+Storage:
+  set-cookie <name> <val> <domain> [opts]    Set a cookie
+  delete-cookie <name> <url> [ws-url]        Delete a cookie
+  get-local-storage <origin> [ws-url]        Get localStorage items
+  set-local-storage-item <origin> <k> <v>    Set localStorage item
+  remove-local-storage-item <origin> <key>   Remove localStorage item
+  clear-local-storage <origin> [ws-url]      Clear all localStorage
+  get-session-storage <origin> [ws-url]      Get sessionStorage items
+  set-session-storage-item <origin> <k> <v>  Set sessionStorage item
+  remove-session-storage-item <origin> <key> Remove sessionStorage item
+  clear-session-storage <origin> [ws-url]    Clear all sessionStorage
+  list-indexed-databases <origin> [ws-url]   List IndexedDB databases
+  get-indexed-db-data <origin> <db> <store>  Query IndexedDB store
+  clear-indexed-db-store <origin> <db> <store> Clear IndexedDB store
+
+Network:
+  get-response-body <requestId> [ws-url]     Get response body
+  set-extra-headers <json> [ws-url]          Set custom HTTP headers
+  set-request-interception <true/false>      Enable/disable interception
+  intercept-continue <requestId> [opts]      Continue intercepted request
+  intercept-respond <id> <status> <body>     Respond to intercepted request
+  set-network-conditions <bytes/sec>         Throttle network
+  disable-cache <true/false> [ws-url]        Disable resource caching
+
+Console:
+  console-messages [-d secs] [ws-url]        Collect console messages
+  clear-console [ws-url]                     Clear console
+  set-log-level <source> <level> [ws-url]    Set logging level
+
+Debugger:
+  debugger-enable [ws-url]                   Enable debugger
+  debugger-disable [ws-url]                  Disable debugger
+  set-breakpoint <url> <line> [col] [opts]   Set breakpoint by URL
+  remove-breakpoint <id> [ws-url]            Remove breakpoint
+  pause [ws-url]                             Pause execution
+  resume [ws-url]                            Resume execution
+  step-over [ws-url]                         Step over
+  step-into [ws-url]                         Step into
+  step-out [ws-url]                          Step out
+  get-script-source <scriptId> [ws-url]      Get script source
+  search-in-content <scriptId> <query>       Search in script
+  eval-on-frame <frameId> <expr> [ws-url]    Evaluate on call frame
+  set-pause-on-exceptions <none|uncaught|all> Configure exception pausing
+
+DOMDebugger:
+  set-dom-breakpoint <nodeId> <type>         Break on DOM change
+  remove-dom-breakpoint <nodeId> <type>      Remove DOM breakpoint
+  set-event-breakpoint <event> [--type t]    Break on event
+  remove-event-breakpoint <event> [--type t] Remove event breakpoint
+  set-url-breakpoint <url> [--regex]         Break on URL request
+  remove-url-breakpoint <url> [ws-url]       Remove URL breakpoint
+
+Performance:
+  timeline-record [-d secs] [ws-url]         Record timeline events
+  memory-track [-d secs] [ws-url]            Track memory usage
+  heap-snapshot [ws-url]                     Take heap snapshot
+  heap-track [-d secs] [ws-url]              Track heap allocations
+  heap-gc [ws-url]                           Force garbage collection
+  cpu-profile [-d secs] [ws-url]             CPU profiling
+  script-profile [-d secs] [ws-url]          Script execution profiling
+
+Animation:
+  animation-enable [ws-url]                  Enable animation tracking
+  animation-disable [ws-url]                 Disable animation tracking
+  animation-track [-d secs] [ws-url]         Track animations
+  get-animation-effect <id> [ws-url]         Get animation effect
+  resolve-animation <id> [ws-url]            Resolve animation object
+
+Canvas:
+  canvas-enable [ws-url]                     Enable canvas tracking
+  canvas-disable [ws-url]                    Disable canvas tracking
+  get-canvas-content <canvasId> [ws-url]     Get canvas image
+  start-canvas-recording <id> [frames]       Start canvas recording
+  stop-canvas-recording <canvasId> [ws-url]  Stop canvas recording
+  get-shader-source <progId> <type>          Get WebGL shader source
+
+LayerTree:
+  get-layer-tree <nodeId> [ws-url]           Get compositing layers
+  get-compositing-reasons <layerId>          Get compositing reasons
+
+Workers:
+  worker-enable [ws-url]                     Enable worker tracking
+  worker-disable [ws-url]                    Disable worker tracking
+  send-to-worker <workerId> <msg> [ws-url]   Send message to worker
+  get-service-worker-info [ws-url]           Get service worker info
+
+Audit & Security:
+  run-audit <testJSON> [ws-url]              Run audit
+  get-certificate-info <requestId> [ws-url]  Get TLS certificate info
+
+Browser:
+  browser-extensions-enable [ws-url]         Enable browser extensions
+  browser-extensions-disable [ws-url]        Disable browser extensions
 
 Port assignment:
   ios_webkit_debug_proxy listens on port 9221 for device listing.
   Each connected device gets an incremented port starting at 9222:
-    Device 1 → localhost:9222
-    Device 2 → localhost:9223
-    ...
+    Device 1 -> localhost:9222
+    Device 2 -> localhost:9223
 
 The ws-url argument is the WebSocket URL from 'pages' output.
 If omitted, connects to the first available page across all devices.

@@ -227,11 +227,71 @@ func TestMCP_ListTools(t *testing.T) {
 	}
 
 	expectedTools := []string{
+		// Core
+		"iwdp_status", "restart_iwdp",
 		"list_devices", "list_pages", "select_page",
-		"navigate", "evaluate_script", "take_screenshot",
-		"get_document", "query_selector", "get_cookies",
-		"network_enable", "debugger_enable",
-		"get_local_storage", "heap_snapshot",
+		"navigate", "reload", "evaluate_script", "take_screenshot", "snapshot_node",
+		"get_document", "query_selector", "query_selector_all",
+		"get_outer_html", "get_attributes", "get_event_listeners",
+		"highlight_node", "hide_highlight",
+		// Runtime
+		"call_function", "get_properties",
+		// CSS
+		"get_matched_styles", "get_computed_style", "get_inline_styles",
+		"set_style_text", "get_all_stylesheets", "get_stylesheet_text",
+		"force_pseudo_state",
+		// Network
+		"network_enable", "network_disable", "list_network_requests",
+		"get_response_body", "set_extra_headers",
+		"set_request_interception", "list_intercepted_requests",
+		"intercept_continue", "intercept_with_response",
+		"intercept_continue_all", "intercept_block_all",
+		"set_emulated_conditions", "set_resource_caching_disabled",
+		// Storage
+		"get_cookies", "set_cookie", "delete_cookie",
+		"get_local_storage", "set_local_storage_item", "remove_local_storage_item", "clear_local_storage",
+		"get_session_storage", "set_session_storage_item", "remove_session_storage_item", "clear_session_storage",
+		"list_indexed_databases", "get_indexed_db_data", "clear_indexed_db_store",
+		// Console
+		"console_enable", "console_disable",
+		"get_console_messages", "clear_console", "set_log_level",
+		// Debugger
+		"debugger_enable", "debugger_disable",
+		"set_breakpoint", "remove_breakpoint",
+		"pause", "resume", "step_over", "step_into", "step_out",
+		"get_script_source", "search_in_content", "evaluate_on_call_frame",
+		"set_pause_on_exceptions",
+		// DOMDebugger
+		"set_dom_breakpoint", "remove_dom_breakpoint",
+		"set_event_breakpoint", "remove_event_breakpoint",
+		"set_url_breakpoint", "remove_url_breakpoint",
+		// Timeline
+		"timeline_start", "timeline_stop", "get_timeline_events",
+		// Memory & Heap
+		"memory_start_tracking", "memory_stop_tracking",
+		"heap_snapshot", "heap_start_tracking", "heap_stop_tracking", "heap_gc",
+		// Profiler
+		"cpu_start_profiling", "cpu_stop_profiling",
+		"script_start_profiling", "script_stop_profiling",
+		// Animation
+		"animation_enable", "animation_disable",
+		"animation_start_tracking", "animation_stop_tracking",
+		"get_animation_effect", "resolve_animation",
+		// Canvas
+		"canvas_enable", "canvas_disable",
+		"get_canvas_content", "start_canvas_recording", "stop_canvas_recording",
+		"get_shader_source",
+		// LayerTree
+		"get_layer_tree", "get_compositing_reasons",
+		// Workers
+		"worker_enable", "worker_disable", "send_to_worker",
+		"get_service_worker_info",
+		// Audit & Security
+		"run_audit", "get_certificate_info",
+		// Browser
+		"browser_extensions_enable", "browser_extensions_disable",
+		// Interaction
+		"click", "fill", "type_text",
 	}
 	for _, name := range expectedTools {
 		if !toolNames[name] {

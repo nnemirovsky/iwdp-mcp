@@ -1,4 +1,4 @@
-.PHONY: build test test-e2e test-integration test-simulator test-coverage \
+.PHONY: build test test-e2e test-coverage \
        sim-setup sim-teardown lint fmt tidy install clean release release-snapshot
 
 # Build
@@ -25,26 +25,20 @@ test-coverage:
 	go test ./... -coverprofile=coverage.out
 	go tool cover -html=coverage.out -o coverage.html
 
-test-e2e:
-	go test ./e2e/ -v -count=1 -timeout=120s
-
-test-integration:
-	go test -tags=integration ./... -v -count=1 -timeout=120s
-
-# Simulator tests — boots iOS Simulator + iwdp, runs all tools against real Safari.
-# Usage: make test-simulator
-#   or:  make sim-setup && go test -tags=simulator ./... -v && make sim-teardown
+# E2E tests — boots iOS Simulator + iwdp, runs all tools against real Safari.
+# Usage: make test-e2e
+#   or:  make sim-setup && go test -tags=simulator ./e2e/ -v && make sim-teardown
 sim-setup:
 	@eval "$$(./scripts/sim-setup.sh)" && echo "IWDP_SIM_WS_URL=$$IWDP_SIM_WS_URL"
 
 sim-teardown:
 	@./scripts/sim-setup.sh --teardown
 
-test-simulator:
+test-e2e:
 	@echo "==> Setting up iOS Simulator..."
 	@eval "$$(./scripts/sim-setup.sh)" && \
-		echo "==> Running simulator tests..." && \
-		go test -tags=simulator ./... -v -count=1 -timeout=300s && \
+		echo "==> Running e2e tests..." && \
+		go test -tags=simulator ./e2e/ -v -count=1 -timeout=300s && \
 		echo "==> Tearing down..." && \
 		./scripts/sim-setup.sh --teardown
 	@./scripts/sim-setup.sh --teardown 2>/dev/null || true
