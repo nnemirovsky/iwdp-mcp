@@ -27,6 +27,10 @@
 - **Real device testing** catches iOS-specific bugs that simulators miss.
 - Works with **Claude Code, VS Code, Cursor, Windsurf, Codex CLI, Antigravity, JetBrains**, and any MCP-compatible client.
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/nnemirovsky-iwdp-mcp).
+
 ## Installation
 
 ### Prerequisites
