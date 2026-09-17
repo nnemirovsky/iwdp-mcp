@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -34,7 +35,7 @@ func TestServerCreationWithRegisterTools(t *testing.T) {
 	}
 }
 
-func TestToolInputSchemasIncludeProperties(t *testing.T) {
+func TestToolInputSchemasAreCodexCompatible(t *testing.T) {
 	ctx := context.Background()
 	impl := &mcp.Implementation{Name: "iwdp-mcp-test", Version: "0.1.0"}
 	server := mcp.NewServer(impl, nil)
@@ -71,10 +72,30 @@ func TestToolInputSchemasIncludeProperties(t *testing.T) {
 		if err := json.Unmarshal(data, &schema); err != nil {
 			t.Fatalf("unmarshal input schema for %s: %v", tool.Name, err)
 		}
-		if schema["type"] == "object" {
-			if _, ok := schema["properties"]; !ok {
-				t.Fatalf("tool %s object input schema is missing properties: %s", tool.Name, data)
+		assertCodexCompatibleInputSchema(t, tool.Name, schema, tool.Name)
+	}
+}
+
+func assertCodexCompatibleInputSchema(t *testing.T, toolName string, schema any, path string) {
+	t.Helper()
+	switch s := schema.(type) {
+	case map[string]any:
+		if schemaTypeIncludes(s["type"], "object") {
+			if _, ok := s["properties"].(map[string]any); !ok {
+				t.Fatalf("tool %s object input schema is missing properties at %s", toolName, path)
 			}
+		}
+		if schemaTypeIncludes(s["type"], "array") {
+			if _, ok := s["items"].(map[string]any); !ok {
+				t.Fatalf("tool %s array input schema items is not an object at %s", toolName, path)
+			}
+		}
+		for key, value := range s {
+			assertCodexCompatibleInputSchema(t, toolName, value, path+"."+key)
+		}
+	case []any:
+		for i, value := range s {
+			assertCodexCompatibleInputSchema(t, toolName, value, fmt.Sprintf("%s[%d]", path, i))
 		}
 	}
 }

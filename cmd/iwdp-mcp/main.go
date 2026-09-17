@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"sync"
 
@@ -65,7 +64,7 @@ func lookupInterceptStage(requestID string) string {
 func main() {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "iwdp-mcp",
-		Version: "0.5.1",
+		Version: "0.5.3",
 	}, nil)
 
 	registerTools(server)
@@ -76,23 +75,67 @@ func main() {
 }
 
 func addTool[In, Out any](s *mcp.Server, t *mcp.Tool, h mcp.ToolHandlerFor[In, Out]) {
-	if t.InputSchema == nil && isEmptyStructType(reflect.TypeFor[In]()) {
-		copy := *t
-		copy.InputSchema = emptyObjectInputSchema()
-		t = &copy
+	copy := *t
+	if copy.InputSchema == nil {
+		schema, err := jsonschema.For[In](nil)
+		if err != nil {
+			panic(fmt.Sprintf("AddTool: tool %q: input schema: %v", copy.Name, err))
+		}
+		copy.InputSchema = codexCompatibleInputSchema(copy.Name, schema)
+	} else {
+		copy.InputSchema = codexCompatibleInputSchema(copy.Name, copy.InputSchema)
 	}
-	mcp.AddTool(s, t, h)
+	mcp.AddTool(s, &copy, h)
 }
 
-func isEmptyStructType(t reflect.Type) bool {
-	return t.Kind() == reflect.Struct && t.NumField() == 0
+func codexCompatibleInputSchema(toolName string, schema any) map[string]any {
+	data, err := json.Marshal(schema)
+	if err != nil {
+		panic(fmt.Sprintf("AddTool: tool %q: marshal input schema: %v", toolName, err))
+	}
+	var out map[string]any
+	if err := json.Unmarshal(data, &out); err != nil {
+		panic(fmt.Sprintf("AddTool: tool %q: unmarshal input schema: %v", toolName, err))
+	}
+	normalizeSchema(out)
+	return out
 }
 
-func emptyObjectInputSchema() *jsonschema.Schema {
-	return &jsonschema.Schema{
-		Type:       "object",
-		Properties: map[string]*jsonschema.Schema{},
+func normalizeSchema(schema any) {
+	switch s := schema.(type) {
+	case map[string]any:
+		for _, value := range s {
+			normalizeSchema(value)
+		}
+		if schemaTypeIncludes(s["type"], "object") {
+			if _, ok := s["properties"].(map[string]any); !ok {
+				s["properties"] = map[string]any{}
+			}
+		}
+		if schemaTypeIncludes(s["type"], "array") {
+			if _, ok := s["items"].(map[string]any); !ok {
+				s["items"] = map[string]any{}
+			}
+		}
+	case []any:
+		for _, value := range s {
+			normalizeSchema(value)
+		}
 	}
+}
+
+func schemaTypeIncludes(value any, typ string) bool {
+	switch v := value.(type) {
+	case string:
+		return v == typ
+	case []any:
+		for _, item := range v {
+			if item == typ {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // --- Input/Output types for MCP tools ---
