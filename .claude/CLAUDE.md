@@ -136,6 +136,20 @@ git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
 
+`scripts/run.sh` downloads the server binary for the version in `plugin.json` and
+checks it against that release's checksums file. Until the tag's release workflow
+has published its assets, the plugin at that commit cannot start, so publish a
+plugin version in the directory only after its GitHub release exists.
+
+## Plugin Directory
+
+- This file lives in `.claude/` because a `CLAUDE.md` at the plugin root draws a
+  validator warning. It still loads as project memory.
+- No text file may name the listing icon or any other image or font file in the
+  plugin. That puts the plugin on a policy hold.
+- The launcher downloading and running a binary is an expected policy hold: a
+  reviewer reads `scripts/run.sh` for each version.
+
 ## Key Dependencies
 
 - `github.com/modelcontextprotocol/go-sdk` v1.4.0 — official MCP Go SDK
