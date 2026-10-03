@@ -2,6 +2,25 @@
   "name": "iwdp-mcp",
   "version": "0.5.3",
   "description": "iOS Safari debugging via ios-webkit-debug-proxy — MCP server with full WebKit Inspector Protocol support",
+  "author": {
+    "name": "Nikita Nemirovsky",
+    "url": "https://github.com/nnemirovsky"
+  },
+  "homepage": "https://github.com/nnemirovsky/iwdp-mcp",
+  "repository": "https://github.com/nnemirovsky/iwdp-mcp",
+  "documentationUrl": "https://github.com/nnemirovsky/iwdp-mcp#readme",
+  "supportUrl": "https://github.com/nnemirovsky/iwdp-mcp/issues",
+  "privacyPolicyUrl": "https://github.com/nnemirovsky/iwdp-mcp/blob/main/PRIVACY.md",
+  "license": "MIT",
+  "keywords": [
+    "ios",
+    "safari",
+    "webkit",
+    "debugging",
+    "web-inspector",
+    "iphone",
+    "mcp"
+  ],
   "mcpServers": {
     "iwdp-mcp": {
       "command": "${CLAUDE_PLUGIN_ROOT}/scripts/run.sh"
