@@ -37,7 +37,8 @@ jobs:
           go-version-file: go.mod
 
       - name: Install gofumpt
-        run: go install mvdan.cc/gofumpt@latest
+        # v0.12 needs go 1.26, and this module is on 1.25.
+        run: go install mvdan.cc/gofumpt@v0.11.0
 
       - name: Check formatting
         run: |
